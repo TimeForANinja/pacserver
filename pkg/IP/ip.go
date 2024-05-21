@@ -23,7 +23,7 @@ func newIP(srcIP string) (IP, error) {
 	for _, part := range parts {
 		p, err := strconv.Atoi(part)
 		if err != nil {
-			// this error is unlikely due to prior validation
+			// this error should be impossible due to prior validation
 			return IP{}, err
 		}
 		ip = ip<<8 | uint32(p)

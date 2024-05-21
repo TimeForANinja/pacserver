@@ -4,9 +4,9 @@ import (
 	"github.com/gofiber/fiber/v2/log"
 )
 
-func buildLookupElements(ipMapFile, pacRoot, contactInfo string) []*lookupElement {
+func buildLookupElements(ipMapFile, pacRoot, contactInfo string) []*LookupElement {
 	// store current cached PACs
-	// they can be usefull when calculating LookupElements
+	// they can be useful when calculating LookupElements
 	// if some pac has been partially deleted by accident
 	oldPACs := cachedPACs
 
@@ -35,7 +35,7 @@ func buildLookupElements(ipMapFile, pacRoot, contactInfo string) []*lookupElemen
 	}
 
 	// build new lookup elements
-	res := make([]*lookupElement, 0)
+	res := make([]*LookupElement, 0)
 	for _, ipm := range newIPMaps {
 		// for each IPMap, (try to) find the corresponding pac
 		var match *pacTemplate
@@ -68,14 +68,14 @@ func buildLookupElements(ipMapFile, pacRoot, contactInfo string) []*lookupElemen
 		// if we found a match (after checking new and cached PACs)
 		// then try to parse it
 		if match != nil {
-			ippm, err := NewLookupElement(ipm, match, contactInfo)
+			le, err := NewLookupElement(ipm, match, contactInfo)
 			if err != nil {
 				// NewLookupElement only fails when the Template could not be filled with the variables
-				// Log it, and recover by scipping this zone
+				// Log it, and recover by skipping this zone
 				log.Warnf("Failed to compile Template %s for zone %s: %s", match.Filename, ipm.IPNet.ToString(), err.Error())
 				continue
 			}
-			res = append(res, &ippm)
+			res = append(res, &le)
 		}
 	}
 	return res

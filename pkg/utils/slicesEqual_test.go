@@ -51,7 +51,7 @@ func TestSlicesEqual_int(t *testing.T) {
 func TestSlicesEqual_Nil(t *testing.T) {
 	// Test case for comparing nil slices
 	var a []int
-	b := []int{}
+	var b []int
 	if !SlicesEqual(a, b) {
 		t.Errorf("SlicesEqual(%v, %v) = %v; want %v", a, b, false, true)
 	}

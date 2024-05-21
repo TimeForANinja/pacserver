@@ -8,7 +8,7 @@ import (
 )
 
 type lookupTreeNode struct {
-	data     *lookupElement
+	data     *LookupElement
 	children []*lookupTreeNode
 }
 
@@ -32,7 +32,7 @@ func _stringifyLookupTree(node *lookupTreeNode, level int) string {
 	return str
 }
 
-func insertTreeElement(root *lookupTreeNode, elem *lookupElement) {
+func insertTreeElement(root *lookupTreeNode, elem *LookupElement) {
 	newNode := &lookupTreeNode{data: elem, children: []*lookupTreeNode{}}
 
 	for i, child := range root.children {
@@ -44,7 +44,7 @@ func insertTreeElement(root *lookupTreeNode, elem *lookupElement) {
 		// Check if the child is a subnet of the elem
 		// Or identical (which simply get stacked)
 		if child.data.isSubnetOf(*elem) || elem.isIdenticalNet(*root.data) {
-			// push child into newnode
+			// push child into new node
 			newNode.children = append(newNode.children, child)
 			// remove child from root
 			root.children = append(root.children[:i], root.children[i+1:]...)
@@ -54,16 +54,16 @@ func insertTreeElement(root *lookupTreeNode, elem *lookupElement) {
 	root.children = append(root.children, newNode)
 }
 
-func buildLookupTree(elements []*lookupElement) *lookupTreeNode {
+func buildLookupTree(elements []*LookupElement) *lookupTreeNode {
 	// build a "fake" root element
-	// this massively simplifes code since we
+	// this massively simplifies code since we
 	// a) always only have a single root element
 	// b) can make sure that we never have to swap the root
-	root_ip, _ := IP.NewIPNetFromMixed("0.0.0.0", 0)
+	rootIP, _ := IP.NewIPNetFromMixed("0.0.0.0", 0)
 	var root = &lookupTreeNode{
-		data: &lookupElement{
+		data: &LookupElement{
 			IPMap: &ipMap{
-				IPNet: root_ip,
+				IPNet: rootIP,
 			},
 		},
 	}
@@ -92,7 +92,7 @@ func simplifyTree(root *lookupTreeNode) {
 		// Recursively simplify child nodes
 		simplifyTree(child)
 		// If the simplified child is not identical to the root, keep it
-		// The following are the two conditios we check
+		// The following are the two conditions we check
 		a := child.data.isIdenticalPAC(*root.data)
 		b := child.data.isIdenticalNet(*root.data)
 		// xor
@@ -106,7 +106,7 @@ func simplifyTree(root *lookupTreeNode) {
 	root.children = simplifiedChildren
 }
 
-func findInTree(root *lookupTreeNode, ip *IP.IPNet) *lookupElement {
+func findInTree(root *lookupTreeNode, ip *IP.Net) *LookupElement {
 	for _, c := range root.children {
 		if ip.IsSubnetOf(c.data.IPMap.IPNet) {
 			return findInTree(c, ip)

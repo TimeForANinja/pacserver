@@ -14,8 +14,8 @@ func ListFiles(root string) ([]string, error) {
 type readDirFunc func(dirname string) ([]fs.DirEntry, error)
 
 func _listFiles(reader readDirFunc, root, stack string) ([]string, error) {
-	full_dir := filepath.Join(root, stack)
-	entry, err := reader(full_dir)
+	fullDir := filepath.Join(root, stack)
+	entry, err := reader(fullDir)
 	if err != nil {
 		return nil, err
 	}

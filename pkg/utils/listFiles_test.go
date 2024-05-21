@@ -29,7 +29,7 @@ func Test_listFiles(t *testing.T) {
 		stack   string
 		reader  readDirFunc
 		want    []string
-		wanterr error
+		wantErr error
 	}{
 		{
 			name:  "SimpleFileStructure",
@@ -50,14 +50,14 @@ func Test_listFiles(t *testing.T) {
 			reader: func(dirname string) ([]fs.DirEntry, error) {
 				switch dirname {
 				case "":
-					return []fs.DirEntry{&fakeDirEntry{"subdir", true}}, nil
-				case "subdir":
+					return []fs.DirEntry{&fakeDirEntry{"subDir", true}}, nil
+				case "subDir":
 					return []fs.DirEntry{&fakeDirEntry{"file.txt", false}}, nil
 				default:
 					return nil, errorUnknownDirectory
 				}
 			},
-			want: []string{filepath.Join("subdir", "file.txt")},
+			want: []string{filepath.Join("subDir", "file.txt")},
 		},
 		{
 			name:  "RootSet",
@@ -66,14 +66,14 @@ func Test_listFiles(t *testing.T) {
 			reader: func(dirname string) ([]fs.DirEntry, error) {
 				switch filepath.ToSlash(dirname) {
 				case "root-dir":
-					return []fs.DirEntry{&fakeDirEntry{"subdir", true}}, nil
-				case "root-dir/subdir":
+					return []fs.DirEntry{&fakeDirEntry{"subDir", true}}, nil
+				case "root-dir/subDir":
 					return []fs.DirEntry{&fakeDirEntry{"file.txt", false}}, nil
 				default:
 					return nil, errorUnknownDirectory
 				}
 			},
-			want: []string{filepath.Join("subdir", "file.txt")},
+			want: []string{filepath.Join("subDir", "file.txt")},
 		},
 		{
 			name:  "ErrorOnReadDir",
@@ -82,15 +82,29 @@ func Test_listFiles(t *testing.T) {
 			reader: func(dirname string) ([]fs.DirEntry, error) {
 				return nil, errorForcedFailure
 			},
-			wanterr: errorForcedFailure,
+			wantErr: errorForcedFailure,
+		},
+		{
+			name:  "ErrorOnReadSubDir",
+			root:  "",
+			stack: "",
+			reader: func(dirname string) ([]fs.DirEntry, error) {
+				switch dirname {
+				case "":
+					return []fs.DirEntry{&fakeDirEntry{"subDir", true}}, nil
+				default:
+					return nil, errorForcedFailure
+				}
+			},
+			wantErr: errorForcedFailure,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := _listFiles(tt.reader, tt.root, tt.stack)
-			if !errors.Is(err, tt.wanterr) {
-				t.Errorf("Expected error %v, got %v", tt.wanterr, err)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Expected error %v, got %v", tt.wantErr, err)
 			}
 
 			if len(got) != len(tt.want) {

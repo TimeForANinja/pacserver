@@ -12,20 +12,20 @@ import (
 )
 
 type ipMap struct {
-	IPNet     IP.IPNet `json:"IPNet"`
+	IPNet     IP.Net   `json:"IPNet"`
 	Filename  string   `json:"Filename"`
 	Hostnames []string `json:"Hostnames"`
 }
 
-func readIPMap(rel_path string) ([]*ipMap, error) {
-	abs_path, err := filepath.Abs(rel_path)
+func readIPMap(relPath string) ([]*ipMap, error) {
+	absPath, err := filepath.Abs(relPath)
 	if err != nil {
-		log.Errorf("Invalid Filepath for IPMap found: \"%s\" %s", err.Error())
+		log.Errorf("Invalid Filepath for IPMap found: \"%s\": %s", absPath, err.Error())
 		return nil, err
 	}
-	file, err := os.Open(abs_path)
+	file, err := os.Open(absPath)
 	if err != nil {
-		log.Errorf("Unable to open IPMap at \"%s\": %s", abs_path, err.Error())
+		log.Errorf("Unable to open IPMap at \"%s\": %s", absPath, err.Error())
 		return nil, err
 	}
 	defer file.Close()
@@ -36,14 +36,14 @@ func readIPMap(rel_path string) ([]*ipMap, error) {
 	lineCount := -1
 	for scanner.Scan() {
 		// read next line
-		txtline := scanner.Text()
+		textLine := scanner.Text()
 		lineCount++
 		// Skip comment-lines
-		if strings.HasPrefix(txtline, "//") || strings.HasPrefix(txtline, "#") {
+		if strings.HasPrefix(textLine, "//") || strings.HasPrefix(textLine, "#") {
 			continue
 		}
 		// parse line as csv
-		r := csv.NewReader(strings.NewReader(txtline))
+		r := csv.NewReader(strings.NewReader(textLine))
 		r.Comma = ',' // set comma as the field delimiter
 		fields, err := r.Read()
 		if err != nil {
@@ -56,7 +56,7 @@ func readIPMap(rel_path string) ([]*ipMap, error) {
 			fields[i] = strings.TrimSpace(field)
 		}
 
-		ipnet, err := IP.NewIPNetFromStr(fields[0], fields[1])
+		ipNet, err := IP.NewIPNetFromStr(fields[0], fields[1])
 		if err != nil {
 			log.Warnf("Unable to parse IP From Line %d: %s", lineCount, err.Error())
 			continue
@@ -64,7 +64,7 @@ func readIPMap(rel_path string) ([]*ipMap, error) {
 
 		// TODO: check syntax of other fields
 		mapping := &ipMap{
-			IPNet:     ipnet,
+			IPNet:     ipNet,
 			Filename:  fields[2],
 			Hostnames: make([]string, 0),
 		}

@@ -14,7 +14,7 @@ import (
 func LaunchServer() {
 	app := fiber.New()
 
-	// Enable Tranport Compression
+	// Enable transport Compression
 	app.Use(compress.New())
 
 	// middleware to write access log
@@ -82,37 +82,37 @@ func LaunchServer() {
 	app.Listen(":8080")
 }
 
-func getFileForIP(c *fiber.Ctx, ip_str string, network_bits int) error {
-	ipnet, err := IP.NewIPNetFromMixed(ip_str, network_bits)
+func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
+	ipNet, err := IP.NewIPNetFromMixed(ipStr, networkBits)
 	if err != nil {
 		// TODO: fallback to default PAC
 		return err
 	}
 
 	// search db for best pac
-	pac := findInTree(lookupTree, &ipnet)
+	pac := findInTree(lookupTree, &ipNet)
 
 	// TODO: fallback to default PAC
 	if pac == nil {
-		pac = &lookupElement{IPMap: &ipMap{}}
+		pac = &LookupElement{IPMap: &ipMap{}}
 	}
 
 	if _, isDebug := c.Queries()["debug"]; isDebug {
 		jsonData, err := json.MarshalIndent(fiber.Map{
 			"raw_requester": fiber.Map{
-				"ip":   ip_str,
-				"cidr": network_bits,
+				"ip":   ipStr,
+				"cidr": networkBits,
 			},
-			"parsed_requester": ipnet,
+			"parsed_requester": ipNet,
 			"pac":              pac,
 		}, "", "\t")
 		if err != nil {
 			return err
 		}
 
-		return c.SendString(string(jsonData) + "\n\n---------------------------------------\n\n" + pac.getVariant(ipnet.NetworkAddress))
+		return c.SendString(string(jsonData) + "\n\n---------------------------------------\n\n" + pac.getVariant(ipNet.NetworkAddress))
 	} else {
 		c.Type("application/x-ns-proxy-autoconfig")
-		return c.SendString(pac.getVariant(ipnet.NetworkAddress))
+		return c.SendString(pac.getVariant(ipNet.NetworkAddress))
 	}
 }

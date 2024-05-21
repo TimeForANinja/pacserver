@@ -13,25 +13,25 @@ type pacTemplate struct {
 	content  string
 }
 
-func readTemplateFiles(rel_pac_dir string) ([]*pacTemplate, error) {
-	abs_pac_path, err := filepath.Abs(rel_pac_dir)
+func readTemplateFiles(relPacDir string) ([]*pacTemplate, error) {
+	absPACPath, err := filepath.Abs(relPacDir)
 	if err != nil {
-		log.Errorf("Invalid Filepath for PACs found: \"%s\" %s", err.Error())
+		log.Errorf("Invalid Filepath for PACs found: \"%s\": %s", absPACPath, err.Error())
 		return nil, err
 	}
-	files, err := utils.ListFiles(abs_pac_path)
+	files, err := utils.ListFiles(absPACPath)
 	if err != nil {
-		log.Errorf("Failed to List PAC Files in \"%s\": %s", abs_pac_path, err.Error())
+		log.Errorf("Failed to List PAC Files in \"%s\": %s", absPACPath, err.Error())
 		return nil, err
 	}
 
 	var templates []*pacTemplate
 
 	for _, file := range files {
-		fullpath := filepath.Join(abs_pac_path, file)
-		fileBytes, err := os.ReadFile(fullpath)
+		fullPath := filepath.Join(absPACPath, file)
+		fileBytes, err := os.ReadFile(fullPath)
 		if err != nil {
-			log.Warnf("Unable to read PAC at \"%s\": %s", fullpath, err.Error())
+			log.Warnf("Unable to read PAC at \"%s\": %s", fullPath, err.Error())
 			continue
 		}
 

@@ -7,38 +7,38 @@ import (
 	"github.com/timeforaninja/pacserver/pkg/IP"
 )
 
-// helper method to create a ipnet, that can not error
-func forceIPNet(ip string, net int) IP.IPNet {
-	ipnet, err := IP.NewIPNetFromMixed(ip, net)
+// helper method to create an ipNet, that can not error
+func forceIPNet(ip string, net int) IP.Net {
+	ipNet, err := IP.NewIPNetFromMixed(ip, net)
 	if err != nil {
 		panic(err)
 	}
-	return ipnet
+	return ipNet
 }
 
 func TestFindInTree(t *testing.T) {
-	buildinRootElement := &lookupElement{
+	buildInRootElement := &LookupElement{
 		PAC: nil,
 		IPMap: &ipMap{
 			IPNet:    forceIPNet("0.0.0.0", 0),
 			Filename: "root",
 		},
 	}
-	globalElement := &lookupElement{
+	globalElement := &LookupElement{
 		PAC: &pacTemplate{},
 		IPMap: &ipMap{
 			IPNet:    forceIPNet("0.0.0.0", 0),
 			Filename: "root",
 		},
 	}
-	child1Element := &lookupElement{
+	child1Element := &LookupElement{
 		PAC: &pacTemplate{},
 		IPMap: &ipMap{
 			IPNet:    forceIPNet("192.168.0.0", 16),
 			Filename: "child",
 		},
 	}
-	child2Element := &lookupElement{
+	child2Element := &LookupElement{
 		PAC: &pacTemplate{},
 		IPMap: &ipMap{
 			IPNet:    forceIPNet("192.168.0.0", 24),
@@ -46,7 +46,7 @@ func TestFindInTree(t *testing.T) {
 		},
 	}
 	demoTree := &lookupTreeNode{
-		data: buildinRootElement,
+		data: buildInRootElement,
 		children: []*lookupTreeNode{
 			{
 				data: globalElement,
@@ -66,46 +66,46 @@ func TestFindInTree(t *testing.T) {
 	tests := []struct {
 		name string
 		tree *lookupTreeNode
-		ip   *IP.IPNet
-		want *lookupElement
+		ip   *IP.Net
+		want *LookupElement
 	}{
 		{
 			name: "Does not Error when only feed with dummy root",
-			tree: &lookupTreeNode{data: buildinRootElement, children: []*lookupTreeNode{}},
-			ip: &IP.IPNet{
+			tree: &lookupTreeNode{data: buildInRootElement, children: []*lookupTreeNode{}},
+			ip: &IP.Net{
 				// 192.168.0.0/32
 				NetworkAddress: IP.IP{Value: 3232235520},
-				CIDR:           IP.CIDR{Value: 32, Mask: IP.MASK_32},
+				CIDR:           IP.CIDR{Value: 32, Mask: IP.Mask32},
 			},
 			want: nil,
 		},
 		{
 			name: "Unknown Element defaults to root",
 			tree: demoTree,
-			ip: &IP.IPNet{
+			ip: &IP.Net{
 				// 0.0.0.0/32
 				NetworkAddress: IP.IP{Value: 0},
-				CIDR:           IP.CIDR{Value: 32, Mask: IP.MASK_32},
+				CIDR:           IP.CIDR{Value: 32, Mask: IP.Mask32},
 			},
 			want: globalElement,
 		},
 		{
-			name: "Most specific Node get's matched",
+			name: "Most specific Node gets matched",
 			tree: demoTree,
-			ip: &IP.IPNet{
+			ip: &IP.Net{
 				// 192.168.0.0/32
 				NetworkAddress: IP.IP{Value: 3232235520},
-				CIDR:           IP.CIDR{Value: 32, Mask: IP.MASK_32},
+				CIDR:           IP.CIDR{Value: 32, Mask: IP.Mask32},
 			},
 			want: child2Element,
 		},
 		{
 			name: "Works for searching networks",
 			tree: demoTree,
-			ip: &IP.IPNet{
+			ip: &IP.Net{
 				// 192.168.0.0/16
 				NetworkAddress: IP.IP{Value: 3232235520},
-				CIDR:           IP.CIDR{Value: 16, Mask: IP.MASK_16},
+				CIDR:           IP.CIDR{Value: 16, Mask: IP.Mask16},
 			},
 			want: child1Element,
 		},
@@ -143,14 +143,14 @@ func TestBuildLookupTree(t *testing.T) {
 	// Prepare the test cases in a table driven format
 	testCases := []struct {
 		Name     string
-		Input    []*lookupElement
+		Input    []*LookupElement
 		Expected *lookupTreeNode
 	}{
 		{
 			Name:  "Empty Input",
-			Input: []*lookupElement{},
+			Input: []*LookupElement{},
 			Expected: &lookupTreeNode{
-				data: &lookupElement{
+				data: &LookupElement{
 					IPMap: &ipMap{
 						Filename: "",
 					},
@@ -158,23 +158,58 @@ func TestBuildLookupTree(t *testing.T) {
 			},
 		},
 		{
+			Name: "Overwrites build-in with explicit default",
+			Input: []*LookupElement{
+				{IPMap: &ipMap{IPNet: forceIPNet("0.0.0.0", 0), Filename: "new global"}, PAC: &pacTemplate{}},
+			},
+			Expected: &lookupTreeNode{
+				data:     &LookupElement{IPMap: &ipMap{Filename: "new global"}},
+				children: []*lookupTreeNode{},
+			},
+		},
+		{
 			Name: "Nested Networks",
-			Input: []*lookupElement{
+			Input: []*LookupElement{
 				{IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "Node 1"}, PAC: &pacTemplate{}},
 				{IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 24), Filename: "Node 2"}, PAC: &pacTemplate{}},
 			},
 			Expected: &lookupTreeNode{
-				data: &lookupElement{
+				data: &LookupElement{
 					IPMap: &ipMap{Filename: ""},
 				},
 				children: []*lookupTreeNode{
 					{
-						data: &lookupElement{
+						data: &LookupElement{
 							IPMap: &ipMap{Filename: "Node 1"},
 						},
 						children: []*lookupTreeNode{
 							{
-								data:     &lookupElement{IPMap: &ipMap{Filename: "Node 2"}},
+								data:     &LookupElement{IPMap: &ipMap{Filename: "Node 2"}},
+								children: []*lookupTreeNode{},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "Nested (unordered) Networks",
+			Input: []*LookupElement{
+				{IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 24), Filename: "Node 2"}, PAC: &pacTemplate{}},
+				{IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "Node 1"}, PAC: &pacTemplate{}},
+			},
+			Expected: &lookupTreeNode{
+				data: &LookupElement{
+					IPMap: &ipMap{Filename: ""},
+				},
+				children: []*lookupTreeNode{
+					{
+						data: &LookupElement{
+							IPMap: &ipMap{Filename: "Node 1"},
+						},
+						children: []*lookupTreeNode{
+							{
+								data:     &LookupElement{IPMap: &ipMap{Filename: "Node 2"}},
 								children: []*lookupTreeNode{},
 							},
 						},
@@ -184,23 +219,23 @@ func TestBuildLookupTree(t *testing.T) {
 		},
 		{
 			Name: "Duplicate Networks (get removed by simplify)",
-			Input: []*lookupElement{
+			Input: []*LookupElement{
 				{IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "Node 1"}, PAC: &pacTemplate{}},
 				{IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "Node 2"}, PAC: &pacTemplate{}},
 				{IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 24), Filename: "Node 3"}, PAC: &pacTemplate{}},
 			},
 			Expected: &lookupTreeNode{
-				data: &lookupElement{
+				data: &LookupElement{
 					IPMap: &ipMap{Filename: ""},
 				},
 				children: []*lookupTreeNode{
 					{
-						data: &lookupElement{
+						data: &LookupElement{
 							IPMap: &ipMap{Filename: "Node 1"},
 						},
 						children: []*lookupTreeNode{
 							{
-								data:     &lookupElement{IPMap: &ipMap{Filename: "Node 3"}},
+								data:     &LookupElement{IPMap: &ipMap{Filename: "Node 3"}},
 								children: []*lookupTreeNode{},
 							},
 						},

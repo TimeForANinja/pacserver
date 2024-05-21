@@ -9,11 +9,11 @@ var ErrCIDRNotAnInt = errors.New("invalid cidr format - not an integer")
 var ErrCIDROutOfRange = errors.New("invalid cidr format - out of range")
 
 var (
-	MASK_0  uint32 = 0b00000000_00000000_00000000_00000000
-	MASK_8  uint32 = 0b11111111_00000000_00000000_00000000
-	MASK_16 uint32 = 0b11111111_11111111_00000000_00000000
-	MASK_24 uint32 = 0b11111111_11111111_11111111_00000000
-	MASK_32 uint32 = 0b11111111_11111111_11111111_11111111
+	Mask0  uint32 = 0b00000000_00000000_00000000_00000000
+	Mask8  uint32 = 0b11111111_00000000_00000000_00000000
+	Mask16 uint32 = 0b11111111_11111111_00000000_00000000
+	Mask24 uint32 = 0b11111111_11111111_11111111_00000000
+	Mask32 uint32 = 0b11111111_11111111_11111111_11111111
 )
 
 func isValidCIDR(cidr int) bool {
@@ -30,21 +30,21 @@ func cidrToNetmask(cidr int) uint32 {
 	return ^uint32(0) << (32 - cidr)
 }
 
-func NewCIDR(cidr_int int) (CIDR, error) {
-	if !isValidCIDR(cidr_int) {
+func NewCIDR(cidrInt int) (CIDR, error) {
+	if !isValidCIDR(cidrInt) {
 		return CIDR{}, ErrCIDROutOfRange
 	}
 	return CIDR{
-		Value: uint8(cidr_int),
-		Mask:  cidrToNetmask(cidr_int),
+		Value: uint8(cidrInt),
+		Mask:  cidrToNetmask(cidrInt),
 	}, nil
 }
 
-func NewCIDRFromString(cidr_str string) (CIDR, error) {
+func NewCIDRFromString(cidrStr string) (CIDR, error) {
 	// (try to) read cidr
-	cidr_int, err := strconv.Atoi(cidr_str)
+	cidrInt, err := strconv.Atoi(cidrStr)
 	if err != nil {
 		return CIDR{}, ErrCIDRNotAnInt
 	}
-	return NewCIDR(cidr_int)
+	return NewCIDR(cidrInt)
 }

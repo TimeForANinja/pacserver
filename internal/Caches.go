@@ -31,16 +31,16 @@ func InitCaches() error {
 	}
 
 	// initial build of the lookup tree
-	update_lookup_tree()
+	updateLookupTree()
 	// start a regular task to refresh the lookup tree
 	if config.DoAutoRefresh {
-		go execute_regular(update_lookup_tree)
+		go executeRegular(updateLookupTree)
 	}
 
 	return nil
 }
 
-func execute_regular(task func()) {
+func executeRegular(task func()) {
 	tick := time.Tick(time.Duration(getConfig().MaxCacheAge) * time.Second)
 	for range tick {
 		log.Infof("Max Cache Age reached - Refreshing Lookup Tree")
@@ -48,7 +48,7 @@ func execute_regular(task func()) {
 	}
 }
 
-func update_lookup_tree() {
+func updateLookupTree() {
 	config := getConfig()
 	table := buildLookupElements(config.IPMapFile, config.PACRoot, conf.ContactInfo)
 	tree := buildLookupTree(table)

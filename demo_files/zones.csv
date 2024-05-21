@@ -1,13 +1,13 @@
 0.0.0.0, 0, my-company.pac, my-proxy-01:8080, my-proxy-02:8081
 10.0.0.0, 8, my-company.pac, my-proxy-11, my-proxy-12
 10.43.0.0, 16, germany.pac, my-proxy-01, my-proxy-02
-10.43.123.0, 24, projectnet-1337.pac, my-proxy-31
+10.43.123.0, 24, project-1337.pac, my-proxy-31
 // some additional test zones
 // and, as you can see, comments should also be possible
 192.168.0.0, 16, other\unknown.pac, no-proxy:1337
 192.168.5.0, 24, other\unknown.pac, no-proxy:1337
 10.43.0.17, 17, other\unknown.pac, my-proxy-02, my-proxy-01
 // test invalid zones (invalid ip and unknown pac)
-a.b.c.d, 16, my-company.pac, testproxy:1337
-10.0.0.1, -16, my-company.pac, testproxy:1337
-192.168.0.0, 24, this-pac-does-not-exist.pac, testproxy:1337
+a.b.c.d, 16, my-company.pac, test-proxy:1337
+10.0.0.1, -16, my-company.pac, test-proxy:1337
+192.168.0.0, 24, this-pac-does-not-exist.pac, test-proxy:1337
