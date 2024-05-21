@@ -1,17 +1,21 @@
 package utils
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 )
 
 func ListFiles(root string) ([]string, error) {
-	return _listFiles(root, "./")
+	return _listFiles(os.ReadDir, root, "./")
 }
 
-func _listFiles(root, stack string) ([]string, error) {
+// some trickery that allows to mock "os" for unit-tests
+type readDirFunc func(dirname string) ([]fs.DirEntry, error)
+
+func _listFiles(reader readDirFunc, root, stack string) ([]string, error) {
 	full_dir := filepath.Join(root, stack)
-	entry, err := os.ReadDir(full_dir)
+	entry, err := reader(full_dir)
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +25,7 @@ func _listFiles(root, stack string) ([]string, error) {
 	for _, e := range entry {
 		fullItemPath := filepath.Join(stack, e.Name())
 		if e.IsDir() {
-			nested, err := _listFiles(root, fullItemPath)
+			nested, err := _listFiles(reader, root, fullItemPath)
 			if err != nil {
 				return nil, err
 			}

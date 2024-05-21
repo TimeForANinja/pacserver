@@ -92,8 +92,14 @@ func simplifyTree(root *lookupTreeNode) {
 		// Recursively simplify child nodes
 		simplifyTree(child)
 		// If the simplified child is not identical to the root, keep it
-		if !child.data.isIdenticalPAC(*root.data) {
+		// The following are the two conditios we check
+		a := child.data.isIdenticalPAC(*root.data)
+		b := child.data.isIdenticalNet(*root.data)
+		// xor
+		if !(a && b) {
 			simplifiedChildren = append(simplifiedChildren, child)
+		} else {
+			simplifiedChildren = append(simplifiedChildren, child.children...)
 		}
 	}
 	// Replace the children with the simplified children
@@ -106,8 +112,8 @@ func findInTree(root *lookupTreeNode, ip *IP.IPNet) *lookupElement {
 			return findInTree(c, ip)
 		}
 	}
-	// check if it's our dummy root
-	// this would mean no rule matches the location
+	// no child matched
+	// check if it's our dummy root - this would mean no rule matches the location
 	if root.data.PAC == nil {
 		return nil
 	}

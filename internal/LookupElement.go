@@ -20,7 +20,11 @@ func (le1 lookupElement) isIdenticalNet(le2 lookupElement) bool {
 }
 
 func (le1 lookupElement) isIdenticalPAC(le2 lookupElement) bool {
-	return le1.IPMap.Filename == le2.IPMap.Filename && utils.SlicesEqual(le1.IPMap.Hostnames, le2.IPMap.Hostnames)
+	// PAC1 can be undefined in testing scenarios
+	if le1.PAC == nil || le2.PAC == nil {
+		return false
+	}
+	return le1.PAC.Filename == le2.PAC.Filename && utils.SlicesEqual(le1.IPMap.Hostnames, le2.IPMap.Hostnames)
 }
 
 func (le1 lookupElement) isSubnetOf(le2 lookupElement) bool {

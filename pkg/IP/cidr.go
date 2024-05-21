@@ -8,6 +8,14 @@ import (
 var ErrCIDRNotAnInt = errors.New("invalid cidr format - not an integer")
 var ErrCIDROutOfRange = errors.New("invalid cidr format - out of range")
 
+var (
+	MASK_0  uint32 = 0b00000000_00000000_00000000_00000000
+	MASK_8  uint32 = 0b11111111_00000000_00000000_00000000
+	MASK_16 uint32 = 0b11111111_11111111_00000000_00000000
+	MASK_24 uint32 = 0b11111111_11111111_11111111_00000000
+	MASK_32 uint32 = 0b11111111_11111111_11111111_11111111
+)
+
 func isValidCIDR(cidr int) bool {
 	return cidr >= 0 && cidr <= 32
 }
