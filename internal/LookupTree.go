@@ -18,11 +18,10 @@ func stringifyLookupTree(root *lookupTreeNode) string {
 
 func _stringifyLookupTree(node *lookupTreeNode, level int) string {
 	str := fmt.Sprintf(
-		"%s - %s | pac(%s, %s)\n",
+		"%s - %s | pac(%s)\n",
 		strings.Repeat(" ", level),
 		node.data.IPMap.IPNet.ToString(),
 		node.data.IPMap.Filename,
-		strings.Join(node.data.IPMap.Hostnames, ", "),
 	)
 
 	for _, c := range node.children {

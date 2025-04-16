@@ -110,9 +110,9 @@ func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
 			return err
 		}
 
-		return c.SendString(string(jsonData) + "\n\n---------------------------------------\n\n" + pac.getVariant(ipNet.NetworkAddress))
+		return c.SendString(string(jsonData) + "\n\n---------------------------------------\n\n" + pac.getVariant())
 	} else {
 		c.Type("application/x-ns-proxy-autoconfig")
-		return c.SendString(pac.getVariant(ipNet.NetworkAddress))
+		return c.SendString(pac.getVariant())
 	}
 }
