@@ -51,9 +51,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }} # Dynamically uses the branch name
+          # Dynamically uses the branch name
+          tag_name: ${{ github.ref_name }}
           files: |
             build/pacserver-linux-amd64
-            build/pacserver-windows-amd64.exe # Uploads both binaries as release assets
+            build/pacserver-windows-amd64.exe
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Required for authentication
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
