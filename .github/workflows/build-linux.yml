@@ -1,14 +1,17 @@
-name: Go Build, Test, and Artifact Upload
+name: Go Build, Test, and Publish Release
+
+permissions:
+  contents: write
 
 on:
   push:
     branches:
-      - main
+      - '**' # Triggers on pushes to every branch
   pull_request:
 
 jobs:
   build:
-    name: Test, Build, and Upload for Linux AMD64
+    name: Test, Build, and Publish Release
     runs-on: ubuntu-latest
 
     steps:
@@ -22,20 +25,27 @@ jobs:
         with:
           go-version: 1.23 # Ensure you use the appropriate Go version
 
-      # Step 3: Run tests
+      # Step 3: Download Go dependencies
+      - name: Download Dependencies
+        run: go mod tidy
+
+
+      # Step 4: Run tests
       - name: Run Tests
         run: |
           go test ./... -v
 
-      # Step 4: Build the specific Go application for Linux/AMD64
+      # Step 5: Build the specific Go application for Linux/AMD64
       - name: Build the Go app
         run: |
           mkdir -p build
           GOOS=linux GOARCH=amd64 go build -o build/pacserver ./cmd/pacserver.go
 
-      # Step 5: Upload the built binary as an artifact
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+      # Step 6: Publish Release with Artifact
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: pacserver-linux-amd64
-          path: build/pacserver
+          tag_name: ${{ github.ref_name }} # Dynamically uses the branch name
+          files: build/pacserver # Upload the built binary as the release asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Required for authentication
