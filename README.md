@@ -3,11 +3,11 @@ This is a custom server made to serve Proxy Auto Config (short PAC) Files based 
 
 ## Setup
 The setup of this App is pretty straight forward.
-After downloading the executable you only require the following three parameters:
+After downloading the executable, you only require the following three parameters:
 
 ### Config
 The application expects a `./config.yml` in the cwd.
-The supported fields for that yaml are:
+The supported fields for that YAML are:
 
 | Field         | Type   | Description                                                     |
 |---------------|--------|-----------------------------------------------------------------|
@@ -21,7 +21,7 @@ The supported fields for that yaml are:
 
 ### Zones
 Zones map IP Networks to PAC Files
-The program expects a CSV, each row is one rule and it supports the following columns
+The program expects a CSV, each row is one rule, and it supports the following columns
 
 | Column ID | type | Description                                                                                                                                      |
 |-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -30,7 +30,7 @@ The program expects a CSV, each row is one rule and it supports the following co
 | 2         | file | The path to the PAC file to use, relative to `pacRoot`                                                                                           |
 
 ### PACs
-Lastly you need to provide the PAC Files themselves.
+Lastly, you need to provide the PAC Files themselves.
 The application allows for the Use of some Template variables.
 The known variables are:
 
