@@ -1,0 +1,41 @@
+name: Go Build, Test, and Artifact Upload
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    name: Test, Build, and Upload for Linux AMD64
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Go environment
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23 # Ensure you use the appropriate Go version
+
+      # Step 3: Run tests
+      - name: Run Tests
+        run: |
+          go test ./... -v
+
+      # Step 4: Build the specific Go application for Linux/AMD64
+      - name: Build the Go app
+        run: |
+          mkdir -p build
+          GOOS=linux GOARCH=amd64 go build -o build/pacserver ./cmd/pacserver.go
+
+      # Step 5: Upload the built binary as an artifact
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: pacserver-linux-amd64
+          path: build/pacserver
