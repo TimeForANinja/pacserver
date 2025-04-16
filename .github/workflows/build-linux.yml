@@ -35,17 +35,25 @@ jobs:
         run: |
           go test ./... -v
 
-      # Step 5: Build the specific Go application for Linux/AMD64
-      - name: Build the Go app
+      # Step 5: Build Linux/AMD64 Binary
+      - name: Build Linux/AMD64 Binary
         run: |
           mkdir -p build
-          GOOS=linux GOARCH=amd64 go build -o build/pacserver ./cmd/pacserver.go
+          GOOS=linux GOARCH=amd64 go build -o build/pacserver-linux-amd64 ./cmd/pacserver.go
 
-      # Step 6: Publish Release with Artifact
+      # Step 6: Build Windows/AMD64 Binary
+      - name: Build Windows/AMD64 Binary
+        run: |
+          mkdir -p build
+          GOOS=windows GOARCH=amd64 go build -o build/pacserver-windows-amd64.exe ./cmd/pacserver.go
+
+      # Step 7: Publish Release with Artifacts
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }} # Dynamically uses the branch name
-          files: build/pacserver # Upload the built binary as the release asset
+          files: |
+            build/pacserver-linux-amd64
+            build/pacserver-windows-amd64.exe # Uploads both binaries as release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Required for authentication
