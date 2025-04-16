@@ -22,3 +22,7 @@ go.work
 
 # other
 *.log
+
+# Python-Branch
+.venv
+__pycache__
