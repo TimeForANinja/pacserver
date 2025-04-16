@@ -14,7 +14,7 @@ jobs:
     steps:
       # Step 1: Checkout the repository
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Step 2: Set up Go environment
       - name: Set up Go
@@ -35,7 +35,7 @@ jobs:
 
       # Step 5: Upload the built binary as an artifact
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pacserver-linux-amd64
           path: build/pacserver
