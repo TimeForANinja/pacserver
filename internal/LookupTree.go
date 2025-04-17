@@ -34,7 +34,9 @@ func _stringifyLookupTree(node *lookupTreeNode, level int) string {
 func insertTreeElement(root *lookupTreeNode, elem *LookupElement) {
 	newNode := &lookupTreeNode{data: elem, children: []*lookupTreeNode{}}
 
-	for i, child := range root.children {
+	// Iterate backwards to safely remove elements
+	for i := len(root.children) - 1; i >= 0; i-- {
+		child := root.children[i]
 		// Check if the elem is a subnet of the child
 		if elem.isSubnetOf(*child.data) {
 			insertTreeElement(child, elem)
@@ -46,7 +48,12 @@ func insertTreeElement(root *lookupTreeNode, elem *LookupElement) {
 			// push child into new node
 			newNode.children = append(newNode.children, child)
 			// remove child from root
-			root.children = append(root.children[:i], root.children[i+1:]...)
+			// watch out for doing i+1 on the last element
+			if i == len(root.children)-1 {
+				root.children = root.children[:i]
+			} else {
+				root.children = append(root.children[:i], root.children[i+1:]...)
+			}
 		}
 	}
 	// If no subnet relation found, add newNode as a child
