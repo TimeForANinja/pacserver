@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/timeforaninja/pacserver/pkg/IP"
@@ -34,7 +35,8 @@ func _stringifyLookupTree(node *lookupTreeNode, level int) string {
 func insertTreeElement(root *lookupTreeNode, elem *LookupElement) {
 	newNode := &lookupTreeNode{data: elem, children: []*lookupTreeNode{}}
 
-	// Iterate backwards to safely remove elements
+	// Iterate backwards
+	// in case we need to remove an element this does not screw up the counter
 	for i := len(root.children) - 1; i >= 0; i-- {
 		child := root.children[i]
 		// Check if the elem is a subnet of the child
@@ -108,6 +110,10 @@ func simplifyTree(root *lookupTreeNode) {
 			simplifiedChildren = append(simplifiedChildren, child.children...)
 		}
 	}
+	// Sort the Children
+	sort.Slice(simplifiedChildren, func(i, j int) bool {
+		return simplifiedChildren[i].data.IPMap.CompareForSort(simplifiedChildren[j].data.IPMap)
+	})
 	// Replace the children with the simplified children
 	root.children = simplifiedChildren
 }

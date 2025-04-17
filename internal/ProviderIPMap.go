@@ -16,6 +16,15 @@ type ipMap struct {
 	Filename string `json:"Filename"`
 }
 
+func (x1 *ipMap) CompareForSort(x2 *ipMap) bool {
+	// First compare by network address
+	if x1.IPNet.NetworkAddress.Value != x2.IPNet.NetworkAddress.Value {
+		return x1.IPNet.NetworkAddress.Value < x2.IPNet.NetworkAddress.Value
+	}
+	// If network addresses are equal, compare by CIDR (more specific networks come later)
+	return x1.IPNet.CIDR.Value < x2.IPNet.CIDR.Value
+}
+
 func readIPMap(relPath string) ([]*ipMap, error) {
 	absPath, err := filepath.Abs(relPath)
 	if err != nil {
