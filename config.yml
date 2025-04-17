@@ -7,3 +7,4 @@ eventLogFile: "./events.log"
 # TODO: maxCacheAge < 0 is the same as doAutoRefresh NO
 doAutoRefresh: true
 maxCacheAge: 3600 # 60x60 > 1h cache age
+port: 8081

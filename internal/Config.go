@@ -17,6 +17,7 @@ type config struct {
 	AccessLogFile string `yaml:"accessLogFile"`
 	EventLogFile  string `yaml:"eventLogFile"`
 	DoAutoRefresh bool   `yaml:"doAutoRefresh"`
+	Port          uint16 `yaml:"port"`
 }
 
 var conf *config

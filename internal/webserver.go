@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -79,7 +80,7 @@ func LaunchServer() {
 		return getFileForIP(c, c.IP(), 32)
 	})
 
-	app.Listen(":8080")
+	app.Listen(fmt.Sprintf(":%d", conf.Port))
 }
 
 func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
