@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  master:
+    image: locustio/locust
+    ports:
+      # export map on port 8080
+      - "8089:8089"
+    volumes:
+      - ./:/mnt/locust
+    command: --config /mnt/locust/master.conf
+
+  worker:
+    image: locustio/locust
+    volumes:
+      - ./:/mnt/locust
+    command: --config /mnt/locust/worker.conf
+    deploy:
+      # set to 0 when using processes
+      replicas: 3
