@@ -259,3 +259,124 @@ func TestBuildLookupTree(t *testing.T) {
 		})
 	}
 }
+
+func TestSimplifyTreeSorting(t *testing.T) {
+	root := &lookupTreeNode{
+		data: &LookupElement{
+			IPMap: &ipMap{
+				IPNet:    forceIPNet("0.0.0.0", 0),
+				Filename: "root",
+			},
+		},
+		children: []*lookupTreeNode{
+			{data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("192.168.2.0", 24), Filename: "third"},
+			}},
+			{data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "second"},
+			}},
+			{data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("10.0.0.0", 8), Filename: "first"},
+			}},
+		},
+	}
+
+	simplifyTree(root)
+
+	// Verify sorting
+	if len(root.children) != 3 {
+		t.Errorf("Expected 3 children, got %d", len(root.children))
+	}
+
+	expectedOrder := []string{"first", "second", "third"}
+	for i, expected := range expectedOrder {
+		if root.children[i].data.IPMap.Filename != expected {
+			t.Errorf("Child at position %d: expected %s, got %s",
+				i, expected, root.children[i].data.IPMap.Filename)
+		}
+	}
+}
+
+func TestInsertTreeElement(t *testing.T) {
+	t.Run("Safe removal when iterating backwards", func(t *testing.T) {
+		// Create a root node with multiple children
+		root := &lookupTreeNode{
+			data: &LookupElement{
+				IPMap: &ipMap{
+					IPNet:    forceIPNet("0.0.0.0", 0),
+					Filename: "root",
+				},
+			},
+			children: []*lookupTreeNode{
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "child1"},
+					},
+				},
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.2.0", 24), Filename: "child2"},
+					},
+				},
+			},
+		}
+
+		// Insert a new element that should contain both existing children
+		// This will force both "old" children to be removed from the "root" node
+		// and pushed under the "partent" node
+		newElem := &LookupElement{
+			IPMap: &ipMap{
+				IPNet:    forceIPNet("192.168.0.0", 16),
+				Filename: "parent",
+			},
+		}
+
+		insertTreeElement(root, newElem)
+
+		// Verify that both children were properly moved
+		if len(root.children) != 1 {
+			t.Errorf("Expected root to have 1 child, got %d", len(root.children))
+		}
+		if root.children[0].data.IPMap.Filename != "parent" {
+			t.Errorf("Expected root.child to be 'parent', got %s", root.children[0].data.PAC.Filename)
+		}
+		if len(root.children[0].children) != 2 {
+			t.Errorf("Expected new node to have 2 children, got %d", len(root.children[0].children))
+		}
+	})
+
+	t.Run("Safe removal of last element", func(t *testing.T) {
+		// Create a root node with single child
+		root := &lookupTreeNode{
+			data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("0.0.0.0", 0), Filename: "root"},
+			},
+			children: []*lookupTreeNode{
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "lastChild"},
+					},
+				},
+			},
+		}
+
+		// Insert a new element that should contain the existing child
+		// the existing child is at last position, to check for index-out-of-bounds problems
+		newElem := &LookupElement{
+			IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "parent"},
+		}
+
+		insertTreeElement(root, newElem)
+
+		// Verify that the child was properly moved
+		if len(root.children) != 1 {
+			t.Errorf("Expected root to have 1 child, got %d", len(root.children))
+		}
+		if len(root.children[0].children) != 1 {
+			t.Errorf("Expected new node to have 1 child, got %d", len(root.children[0].children))
+		}
+		if root.children[0].children[0].data.IPMap.Filename != "lastChild" {
+			t.Errorf("Expected child to be 'lastChild', got %s", root.children[0].children[0].data.IPMap.Filename)
+		}
+	})
+}
