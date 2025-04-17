@@ -21,7 +21,7 @@ func LaunchServer() {
 	app.Use(logger.New(logger.Config{
 		// For more options, see the Config section
 		Format:     "${time} ${ip} ${status} - ${method} ${path}\n",
-		TimeFormat: "2006-Jan-02",
+		TimeFormat: "2006-Jan-02 15:04:05",
 		Output:     getAccessLogger(),
 	}))
 
