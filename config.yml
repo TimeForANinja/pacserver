@@ -8,3 +8,6 @@ eventLogFile: "./events.log"
 doAutoRefresh: true
 maxCacheAge: 3600 # 60x60 > 1h cache age
 port: 8081
+# Prometheus metrics configuration
+prometheusEnabled: true
+prometheusPath: "/metrics"

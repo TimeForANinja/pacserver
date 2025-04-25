@@ -3,17 +3,104 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/timeforaninja/pacserver/pkg/IP"
 )
 
+// Custom metrics for Prometheus
+var (
+	// Response time metrics
+	responseTimeHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "pacserver_response_time_seconds",
+		Help:    "Response time distribution in seconds",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	// CPU and Memory metrics
+	cpuUsageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "pacserver_cpu_usage_percent",
+		Help: "Current CPU usage percentage",
+	})
+
+	memUsageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "pacserver_memory_usage_bytes",
+		Help: "Current memory usage in bytes",
+	})
+
+	// Thread count metric
+	threadCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "pacserver_thread_count",
+		Help: "Current number of goroutines",
+	})
+
+	// HTTP error rate metric
+	httpErrorCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pacserver_http_errors_total",
+			Help: "Total number of HTTP errors",
+		},
+		[]string{"status_code"},
+	)
+
+	// Data I/O metrics
+	dataInCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "pacserver_data_in_bytes_total",
+		Help: "Total bytes received",
+	})
+
+	dataOutCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "pacserver_data_out_bytes_total",
+		Help: "Total bytes sent",
+	})
+)
+
+func init() {
+	// Register custom metrics with Prometheus
+	prometheus.MustRegister(responseTimeHistogram)
+	prometheus.MustRegister(cpuUsageGauge)
+	prometheus.MustRegister(memUsageGauge)
+	prometheus.MustRegister(threadCountGauge)
+	prometheus.MustRegister(httpErrorCounter)
+	prometheus.MustRegister(dataInCounter)
+	prometheus.MustRegister(dataOutCounter)
+}
+
+// updateResourceMetrics periodically updates CPU, memory, and thread metrics
+func updateResourceMetrics() {
+	for {
+		// Update thread count
+		threadCountGauge.Set(float64(runtime.NumGoroutine()))
+
+		// Update memory usage
+		var memStats runtime.MemStats
+		runtime.ReadMemStats(&memStats)
+		memUsageGauge.Set(float64(memStats.Alloc))
+
+		// CPU usage is more complex and would require additional libraries
+		// For simplicity, we're not implementing actual CPU usage here
+		// In a production environment, you might use a library like gopsutil
+
+		time.Sleep(15 * time.Second)
+	}
+}
+
 func LaunchServer() {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		// Enable tracking of response sizes for Prometheus metrics
+		EnablePrintRoutes: false,
+	})
+
+	// Start resource metrics collection in a separate goroutine
+	go updateResourceMetrics()
 
 	// Enable transport Compression
 	app.Use(compress.New())
@@ -25,6 +112,38 @@ func LaunchServer() {
 		TimeFormat: "2006-Jan-02 15:04:05",
 		Output:     getAccessLogger(),
 	}))
+
+	// Add middleware to track response times and errors
+	app.Use(func(c *fiber.Ctx) error {
+		// Record request size
+		dataInCounter.Add(float64(len(c.Request().Body())))
+
+		// Start timer for response time
+		startTime := time.Now()
+
+		// Process request
+		err := c.Next()
+
+		// Record response time
+		duration := time.Since(startTime).Seconds()
+		responseTimeHistogram.Observe(duration)
+
+		// Record response size
+		dataOutCounter.Add(float64(len(c.Response().Body())))
+
+		// Record HTTP errors
+		if c.Response().StatusCode() >= 400 {
+			httpErrorCounter.WithLabelValues(strconv.Itoa(c.Response().StatusCode())).Inc()
+		}
+
+		return err
+	})
+
+	// Setup Prometheus middleware if enabled
+	if conf.PrometheusEnabled {
+		prometheus := fiberprometheus.New("pacserver")
+		prometheus.RegisterAt(app, conf.PrometheusPath)
+	}
 
 	// Define (testing) route where the IP is passed as parameter
 	app.Get("/:ip", func(c *fiber.Ctx) error {

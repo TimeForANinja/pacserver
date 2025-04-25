@@ -10,14 +10,16 @@ import (
 )
 
 type config struct {
-	MaxCacheAge   int64  `yaml:"maxCacheAge"`
-	IPMapFile     string `yaml:"ipMapFile"`
-	PACRoot       string `yaml:"pacRoot"`
-	ContactInfo   string `yaml:"contactInfo"`
-	AccessLogFile string `yaml:"accessLogFile"`
-	EventLogFile  string `yaml:"eventLogFile"`
-	DoAutoRefresh bool   `yaml:"doAutoRefresh"`
-	Port          uint16 `yaml:"port"`
+	MaxCacheAge       int64  `yaml:"maxCacheAge"`
+	IPMapFile         string `yaml:"ipMapFile"`
+	PACRoot           string `yaml:"pacRoot"`
+	ContactInfo       string `yaml:"contactInfo"`
+	AccessLogFile     string `yaml:"accessLogFile"`
+	EventLogFile      string `yaml:"eventLogFile"`
+	DoAutoRefresh     bool   `yaml:"doAutoRefresh"`
+	Port              uint16 `yaml:"port"`
+	PrometheusEnabled bool   `yaml:"prometheusEnabled"`
+	PrometheusPath    string `yaml:"prometheusPath"`
 }
 
 var conf *config
