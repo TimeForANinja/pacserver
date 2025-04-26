@@ -82,7 +82,7 @@ var (
 		Help: "Total bytes received",
 	})
 	dataOutCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "app_data_out",
+		Name: "app_bytes_out",
 		Help: "Total bytes sent",
 	})
 

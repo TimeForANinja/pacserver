@@ -188,7 +188,7 @@ The following metrics are available:
 
 - **Data I/O**:
     - `app_bytes_in` - Total bytes received
-    - `app_data_out` - Total bytes sent
+    - `app_bytes_out` - Total bytes sent
 
 - **HTTP Status Codes**:
     - `app_http_errors_total` - Total number of HTTP responses by status code
