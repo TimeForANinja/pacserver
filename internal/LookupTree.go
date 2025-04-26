@@ -119,11 +119,26 @@ func simplifyTree(root *lookupTreeNode) {
 }
 
 func findInTree(root *lookupTreeNode, ip *IP.Net) *LookupElement {
+	// Check for nil root to prevent panic
+	if root == nil {
+		return nil
+	}
+	if root.data == nil || root.data.IPMap == nil {
+		return nil
+	}
+
 	for _, c := range root.children {
+		// Check for nil child data or IPMap to prevent panic
+		if c == nil || c.data == nil || c.data.IPMap == nil {
+			continue
+		}
+
 		if ip.IsSubnetOf(c.data.IPMap.IPNet) {
+			// Use a recursive call to check if we have more detailed children
 			return findInTree(c, ip)
 		}
 	}
+
 	// no child matched
 	// check if it's our dummy root - this would mean no rule matches the location
 	if root.data.PAC == nil {

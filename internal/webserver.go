@@ -73,6 +73,9 @@ var (
 		Name: "app_data_out",
 		Help: "Total bytes sent",
 	})
+
+	// various other metrics are already tracked by fiberprometheus by default
+	// those include cgo, memory and cpu times
 )
 
 func init() {
@@ -113,6 +116,16 @@ func LaunchServer() {
 	app := fiber.New(fiber.Config{
 		// Enable tracking of response sizes for Prometheus metrics
 		EnablePrintRoutes: false,
+
+		// ReadTimeout: Maximum duration for reading the entire request (including body).
+		// If a client takes longer than this to send their request, the connection is closed.
+		ReadTimeout: 5 * time.Second,
+		// WriteTimeout: Maximum duration for writing the response to the client.
+		// If the server takes longer than this to send the complete response, the connection is terminated.
+		WriteTimeout: 10 * time.Second,
+		// IdleTimeout: Maximum time to wait for the next request when keep-alive is enabled.
+		// Connection is closed if no new request is received within this duration.
+		IdleTimeout: 120 * time.Second,
 	})
 
 	// Start resource metrics collection in a separate goroutine
@@ -214,6 +227,7 @@ func LaunchServer() {
 		return getFileForIP(c, c.IP(), 32)
 	})
 
+	// Start the server
 	log.Fatal(app.Listen(fmt.Sprintf(":%d", conf.Port)))
 }
 
@@ -232,7 +246,8 @@ func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
 		pac = &LookupElement{IPMap: &ipMap{}}
 	}
 
-	httpErrorCounter.WithLabelValues(pac.IPMap.Filename).Inc()
+	// Track which PAC file was served
+	pacFileCounter.WithLabelValues(pac.IPMap.Filename).Inc()
 
 	if _, isDebug := c.Queries()["debug"]; isDebug {
 		jsonData, err := json.MarshalIndent(fiber.Map{
@@ -244,6 +259,7 @@ func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
 			"pac":              pac,
 		}, "", "\t")
 		if err != nil {
+			log.Errorf("Error marshaling debug JSON: %v", err)
 			return err
 		}
 

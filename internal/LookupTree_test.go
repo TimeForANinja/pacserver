@@ -379,4 +379,82 @@ func TestInsertTreeElement(t *testing.T) {
 			t.Errorf("Expected child to be 'lastChild', got %s", root.children[0].children[0].data.IPMap.Filename)
 		}
 	})
+
+	t.Run("Safe removal of middle element", func(t *testing.T) {
+		// Create a root node with three children
+		root := &lookupTreeNode{
+			data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("0.0.0.0", 0), Filename: "root"},
+			},
+			children: []*lookupTreeNode{
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("10.0.0.0", 8), Filename: "first"},
+					},
+				},
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "middle"},
+					},
+				},
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("172.16.0.0", 12), Filename: "last"},
+					},
+				},
+			},
+		}
+
+		// Insert a new element that should contain only the middle child
+		newElem := &LookupElement{
+			IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "parent"},
+		}
+
+		insertTreeElement(root, newElem)
+
+		// Verify the structure
+		if len(root.children) != 3 {
+			t.Errorf("Expected root to have 3 children, got %d", len(root.children))
+		}
+
+		// Find the new parent node (it should be in sorted order)
+		var parentNode *lookupTreeNode
+		for _, child := range root.children {
+			if child.data.IPMap.Filename == "parent" {
+				parentNode = child
+				break
+			}
+		}
+
+		if parentNode == nil {
+			t.Fatal("Expected to find 'parent' node")
+		}
+
+		// Verify the parent has the middle child
+		if len(parentNode.children) != 1 {
+			t.Errorf("Expected parent to have 1 child, got %d", len(parentNode.children))
+		}
+
+		if parentNode.children[0].data.IPMap.Filename != "middle" {
+			t.Errorf("Expected child to be 'middle', got %s", parentNode.children[0].data.IPMap.Filename)
+		}
+
+		// Verify other children remained in root
+		var foundFirst, foundLast bool
+		for _, child := range root.children {
+			if child.data.IPMap.Filename == "first" {
+				foundFirst = true
+			}
+			if child.data.IPMap.Filename == "last" {
+				foundLast = true
+			}
+		}
+
+		if !foundFirst {
+			t.Error("First child missing from root")
+		}
+		if !foundLast {
+			t.Error("Last child missing from root")
+		}
+	})
 }
