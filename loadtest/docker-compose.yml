@@ -1,0 +1,86 @@
+version: '3'
+
+###############################################################
+# This script allows to load-test the Pacserver
+#
+# The following Services are part of this compose:
+# a) The pacserver at http://pacserver01:8080                   (exposed on master as 8080)
+# b) A comparable apache pacserver at http://pacserver02:8080   (exposed on master as 8081)
+# c) The Locust loadtest-server at http://locust-master:8089    (exposed on master as 8089)
+# d) A Prometheus-Server at http://prometheus:9090              (exposed on master as 9090)
+# d) A Grafana-Server at http://grafana:3000                    (exposed on master as 3000)
+###############################################################
+
+services:
+  pacserver01:
+    build:
+      context: ../
+      dockerfile: ./loadtest/pacserver.dockerfile
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          # limit CPU usage to make it easier to reach max load
+          cpus: 0.5
+  pacserver02:
+    build:
+      context: ../
+      dockerfile: ./loadtest/apache.dockerfile
+    ports:
+      - "8081:8080"
+    deploy:
+      resources:
+        limits:
+          # limit CPU usage to make it easier to reach max load
+          cpus: 0.5
+
+  ##########
+  # LOCUST #
+  ##########
+  locust-master:
+    image: locustio/locust
+    ports:
+      # export map on port 8080
+      - "8089:8089"
+    volumes:
+      - ./locust:/mnt/locust
+    command: --config /mnt/locust/master.conf
+  locust-worker:
+    image: locustio/locust
+    volumes:
+      - ./locust:/mnt/locust
+    command: --config /mnt/locust/worker.conf
+    deploy:
+      # set to 0 when using processes
+      replicas: 20
+
+  ########################
+  # Grafana & Prometheus #
+  ########################
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prom_data:/prometheus
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+
+volumes:
+  # volume to store prometheus data
+  prom_data:

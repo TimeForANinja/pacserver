@@ -11,3 +11,45 @@
 a.b.c.d, 16, my-company.pac
 10.0.0.1, -16, my-company.pac
 192.168.0.0, 24, this-pac-does-not-exist.pac
+
+// New zones for USA
+172.16.0.0, 16, countries/usa.pac
+172.16.1.0, 24, countries/usa.pac
+172.16.2.0, 24, countries/usa.pac
+
+// New zones for UK
+172.17.0.0, 16, countries/uk.pac
+172.17.1.0, 24, countries/uk.pac
+172.17.2.0, 24, countries/uk.pac
+
+// New zones for France
+172.18.0.0, 16, countries/france.pac
+172.18.1.0, 24, countries/france.pac
+
+// New zones for Japan
+172.19.0.0, 16, countries/japan.pac
+172.19.1.0, 24, countries/japan.pac
+
+// New zones for Australia
+172.20.0.0, 16, countries/australia.pac
+172.20.1.0, 24, countries/australia.pac
+
+// New zones for Canada
+172.21.0.0, 16, countries/canada.pac
+172.21.1.0, 24, countries/canada.pac
+
+// New zones for Brazil
+172.22.0.0, 16, countries/brazil.pac
+172.22.1.0, 24, countries/brazil.pac
+
+// New zones for India
+172.23.0.0, 16, countries/india.pac
+172.23.1.0, 24, countries/india.pac
+
+// New zones for China
+172.24.0.0, 16, countries/china.pac
+172.24.1.0, 24, countries/china.pac
+
+// New zones for Russia
+172.25.0.0, 16, countries/russia.pac
+172.25.1.0, 24, countries/russia.pac
