@@ -3,7 +3,7 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"runtime"
+	"github.com/gofiber/fiber/v2/log"
 	"strconv"
 	"strings"
 	"time"
@@ -21,53 +21,56 @@ import (
 var (
 	// Response time metrics
 	responseTimeHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "pacserver_response_time_seconds",
+		Name:    "app_response_time_hist_seconds",
 		Help:    "Response time distribution in seconds",
 		Buckets: []float64{1e-7, 5e-7, 1e-6, 5e-6, 1e-5, 5e-5, 0.0001, 0.0005, 0.001, 0.005, 0.01},
 	})
 
+	responseTimeSummary = prometheus.NewSummary(prometheus.SummaryOpts{
+		Name: "app_response_time_summary_seconds",
+		Help: "Response time distribution in seconds",
+		Objectives: map[float64]float64{
+			0.5:   0.05,   // 50th percentile (median) with 5% error
+			0.9:   0.01,   // 90th percentile with 1% error
+			0.99:  0.001,  // 99th percentile with 0.1% error
+			0.999: 0.0001, // 99.9th percentile with 0.01% error
+		},
+	})
+
 	// Response time metrics
-	openSocketCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pacserver_open_sockets_total",
-			Help: "Total number of Open Sockets and State",
+	openSocketCounter = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "app_socket_states",
+			Help: "number of active sockets by state",
 		},
 		[]string{"state"},
 	)
 
-	// CPU and Memory metrics
-	cpuUsageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "pacserver_cpu_usage_percent",
-		Help: "Current CPU usage percentage",
-	})
-
-	memUsageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "pacserver_memory_usage_bytes",
-		Help: "Current memory usage in bytes",
-	})
-
-	// Thread count metric
-	threadCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "pacserver_thread_count",
-		Help: "Current number of goroutines",
-	})
-
-	// HTTP error rate metric
+	// HTTP status code metrics
 	httpErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "pacserver_http_errors_total",
-			Help: "Total number of HTTP errors",
+			Name: "app_http_errors_total",
+			Help: "Total number of HTTP status codes",
 		},
 		[]string{"status_code"},
 	)
 
+	// Response pac file metric
+	pacFileCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "app_pac_file",
+			Help: "Number of PAC files server.",
+		},
+		[]string{"file"},
+	)
+
 	// Data I/O metrics
 	dataInCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pacserver_data_in_bytes_total",
+		Name: "app_bytes_in",
 		Help: "Total bytes received",
 	})
 	dataOutCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pacserver_data_out_bytes_total",
+		Name: "app_data_out",
 		Help: "Total bytes sent",
 	})
 )
@@ -75,11 +78,10 @@ var (
 func init() {
 	// Register custom metrics with Prometheus
 	prometheus.MustRegister(responseTimeHistogram)
+	prometheus.MustRegister(responseTimeSummary)
 	prometheus.MustRegister(openSocketCounter)
-	prometheus.MustRegister(cpuUsageGauge)
-	prometheus.MustRegister(memUsageGauge)
-	prometheus.MustRegister(threadCountGauge)
 	prometheus.MustRegister(httpErrorCounter)
+	prometheus.MustRegister(pacFileCounter)
 	prometheus.MustRegister(dataInCounter)
 	prometheus.MustRegister(dataOutCounter)
 }
@@ -87,27 +89,21 @@ func init() {
 // updateResourceMetrics periodically updates CPU, memory, and thread metrics
 func updateResourceMetrics() {
 	for {
-		// Update thread count
-		threadCountGauge.Set(float64(runtime.NumGoroutine()))
-
-		// Update memory usage
-		var memStats runtime.MemStats
-		runtime.ReadMemStats(&memStats)
-		memUsageGauge.Set(float64(memStats.Alloc))
-
-		// sockets
-		// list all the TCP sockets in state FIN_WAIT_1 for your HTTP server
+		// list all the TCP sockets for your HTTP server
 		tabs, err := netstat.TCPSocks(netstat.NoopFilter)
 		if err == nil {
-			openSocketCounter.Reset()
+			// Create a map and count states
+			stateCounts := make(map[string]float64)
 			for _, tab := range tabs {
-				openSocketCounter.WithLabelValues(tab.State.String()).Inc()
+				state := tab.State.String()
+				stateCounts[state]++
+			}
+
+			// Set all values at once, which should perform slightly better
+			for state, count := range stateCounts {
+				openSocketCounter.WithLabelValues(state).Set(count)
 			}
 		}
-
-		// CPU usage is more complex and would require additional libraries
-		// For simplicity, we're not implementing actual CPU usage here
-		// In a production environment, you might use a library like gopsutil
 
 		time.Sleep(1 * time.Second)
 	}
@@ -147,25 +143,24 @@ func LaunchServer() {
 		// Record response time
 		duration := time.Since(startTime).Seconds()
 		responseTimeHistogram.Observe(duration)
+		responseTimeSummary.Observe(duration)
 
 		// Record response size
 		dataOutCounter.Add(float64(len(c.Response().Body())))
 
-		// Record HTTP errors
-		if c.Response().StatusCode() != 200 {
-			httpErrorCounter.WithLabelValues(strconv.Itoa(c.Response().StatusCode())).Inc()
-		}
+		// Track HTTP codes
+		httpErrorCounter.WithLabelValues(strconv.Itoa(c.Response().StatusCode())).Inc()
 
 		return err
 	})
 
 	// Setup Prometheus middleware if enabled
 	if conf.PrometheusEnabled {
-		prometheus := fiberprometheus.New("pacserver")
-		prometheus.RegisterAt(app, conf.PrometheusPath)
+		prom := fiberprometheus.New("pacserver")
+		prom.RegisterAt(app, conf.PrometheusPath)
 	}
 
-	// Define (testing) route where the IP is passed as parameter
+	// Define (testing) route where the IP is passed as a parameter
 	app.Get("/:ip", func(c *fiber.Ctx) error {
 		ip := c.Params("ip")
 
@@ -219,7 +214,7 @@ func LaunchServer() {
 		return getFileForIP(c, c.IP(), 32)
 	})
 
-	app.Listen(fmt.Sprintf(":%d", conf.Port))
+	log.Fatal(app.Listen(fmt.Sprintf(":%d", conf.Port)))
 }
 
 func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
@@ -236,6 +231,8 @@ func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
 	if pac == nil {
 		pac = &LookupElement{IPMap: &ipMap{}}
 	}
+
+	httpErrorCounter.WithLabelValues(pac.IPMap.Filename).Inc()
 
 	if _, isDebug := c.Queries()["debug"]; isDebug {
 		jsonData, err := json.MarshalIndent(fiber.Map{
