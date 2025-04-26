@@ -114,7 +114,7 @@ func TestFindInTree(t *testing.T) {
 	// Run the test cases
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := findInTree(tc.tree, tc.ip)
+			got, _ := findInTree(tc.tree, tc.ip)
 
 			if (got == nil && tc.want != nil) || got != tc.want {
 				t.Errorf("findInTree() = %v, want %v", got, tc.want)

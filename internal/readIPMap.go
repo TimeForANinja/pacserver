@@ -1,5 +1,9 @@
 package internal
 
+/**
+ * this file reads in the zone file and parses it into a list of IP Maps
+ */
+
 import (
 	"bufio"
 	"encoding/csv"
@@ -25,22 +29,23 @@ func (x1 *ipMap) CompareForSort(x2 *ipMap) bool {
 	return x1.IPNet.CIDR.Value < x2.IPNet.CIDR.Value
 }
 
-func readIPMap(relPath string) ([]*ipMap, error) {
+func readIPMap(relPath string) ([]*ipMap, error, int) {
 	absPath, err := filepath.Abs(relPath)
 	if err != nil {
 		log.Errorf("Invalid Filepath for IPMap found: \"%s\": %s", absPath, err.Error())
-		return nil, err
+		return make([]*ipMap, 0), err, 1
 	}
 	file, err := os.Open(absPath)
 	if err != nil {
 		log.Errorf("Unable to open IPMap at \"%s\": %s", absPath, err.Error())
-		return nil, err
+		return make([]*ipMap, 0), err, 1
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	var mappings []*ipMap
 
+	problemCounter := 0
 	lineCount := -1
 	for scanner.Scan() {
 		// read next line
@@ -58,6 +63,7 @@ func readIPMap(relPath string) ([]*ipMap, error) {
 		fields, err := r.Read()
 		if err != nil {
 			log.Warnf("Unable to Parse CSV Line %d: %s", lineCount, err.Error())
+			problemCounter++
 			continue
 		}
 
@@ -69,12 +75,14 @@ func readIPMap(relPath string) ([]*ipMap, error) {
 		// Ensure the CSV has exactly two fields
 		if len(fields) != 3 {
 			log.Warnf("Invalid number of fields on line %d, expected 3 buz got %d", lineCount, len(fields))
+			problemCounter++
 			continue
 		}
 
 		ipNet, err := IP.NewIPNetFromStr(fields[0], fields[1])
 		if err != nil {
 			log.Warnf("Unable to parse IP From Line %d: %s", lineCount, err.Error())
+			problemCounter++
 			continue
 		}
 
@@ -87,5 +95,5 @@ func readIPMap(relPath string) ([]*ipMap, error) {
 		mappings = append(mappings, mapping)
 	}
 
-	return mappings, nil
+	return mappings, nil, problemCounter
 }

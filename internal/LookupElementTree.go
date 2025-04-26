@@ -1,7 +1,15 @@
 package internal
 
+/**
+ * LookupTree is the main structure to store and serve the PAC Mappings
+ *
+ * It sorts and nests the Elements based on the IP Network to allow for
+ * efficient lookup of the best matching PAC
+ */
+
 import (
 	"fmt"
+	"github.com/gofiber/fiber/v2/log"
 	"sort"
 	"strings"
 
@@ -19,16 +27,27 @@ func stringifyLookupTree(root *lookupTreeNode) string {
 
 func _stringifyLookupTree(node *lookupTreeNode, level int) string {
 	str := fmt.Sprintf(
-		"%s - %s | pac(%s)\n",
-		strings.Repeat(" ", level),
-		node.data.IPMap.IPNet.ToString(),
-		node.data.IPMap.Filename,
+		"%s - %s\n",
+		strings.Repeat("\t", level),
+		node.data._stringify(),
 	)
 
 	for _, c := range node.children {
 		str += _stringifyLookupTree(c, level+1)
 	}
 
+	return str
+}
+
+func _stringifyLookupStack(stack []*LookupElement) string {
+	str := ""
+	for level, node := range stack {
+		str += fmt.Sprintf(
+			"%s - %s\n",
+			strings.Repeat("\t", level),
+			node._stringify(),
+		)
+	}
 	return str
 }
 
@@ -118,13 +137,14 @@ func simplifyTree(root *lookupTreeNode) {
 	root.children = simplifiedChildren
 }
 
-func findInTree(root *lookupTreeNode, ip *IP.Net) *LookupElement {
+func findInTree(root *lookupTreeNode, ip *IP.Net) (*LookupElement, []*LookupElement) {
 	// Check for nil root to prevent panic
+	log.Debug("findInTree", root, ip.ToString())
 	if root == nil {
-		return nil
+		return nil, []*LookupElement{}
 	}
 	if root.data == nil || root.data.IPMap == nil {
-		return nil
+		return nil, []*LookupElement{}
 	}
 
 	for _, c := range root.children {
@@ -135,14 +155,17 @@ func findInTree(root *lookupTreeNode, ip *IP.Net) *LookupElement {
 
 		if ip.IsSubnetOf(c.data.IPMap.IPNet) {
 			// Use a recursive call to check if we have more detailed children
-			return findInTree(c, ip)
+			node, stack := findInTree(c, ip)
+			// append to the front of the stack
+			stack = append([]*LookupElement{root.data}, stack...)
+			return node, stack
 		}
 	}
 
 	// no child matched
 	// check if it's our dummy root - this would mean no rule matches the location
 	if root.data.PAC == nil {
-		return nil
+		return nil, []*LookupElement{}
 	}
-	return root.data
+	return root.data, []*LookupElement{root.data}
 }

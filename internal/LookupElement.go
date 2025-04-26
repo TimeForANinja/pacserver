@@ -1,14 +1,20 @@
 package internal
 
+/**
+ * LookupElement is the core data structure of this server
+ * it maps an IP Net (CIDR) to a PAC File
+ */
+
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 )
 
 type LookupElement struct {
 	IPMap *ipMap       `json:"IPMap"`
 	PAC   *pacTemplate `json:"PAC"`
-
+	// the parsed content of the PAC Template
 	variant string
 }
 
@@ -34,6 +40,14 @@ func (le1 LookupElement) getRawCIDR() uint8 {
 
 func (le1 LookupElement) getVariant() string {
 	return le1.variant
+}
+
+func (le1 LookupElement) _stringify() string {
+	return fmt.Sprintf(
+		"%s | pac(%s)",
+		le1.IPMap.IPNet.ToString(),
+		le1.IPMap.Filename,
+	)
 }
 
 type templateParams struct {
