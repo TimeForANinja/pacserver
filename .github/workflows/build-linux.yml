@@ -39,7 +39,7 @@ jobs:
       - name: Build Linux/AMD64 Binary
         run: |
           mkdir -p build
-          GOOS=linux GOARCH=amd64 go build -o build/pacserver-linux-amd64 ./cmd/pacserver.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-extldflags=-static' -o build/pacserver-linux-amd64 ./cmd/pacserver.go
 
       # Step 6: Build Windows/AMD64 Binary
       - name: Build Windows/AMD64 Binary

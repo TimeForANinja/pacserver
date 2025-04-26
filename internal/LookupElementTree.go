@@ -1,7 +1,16 @@
 package internal
 
+/**
+ * LookupTree is the main structure to store and serve the PAC Mappings
+ *
+ * It sorts and nests the Elements based on the IP Network to allow for
+ * efficient lookup of the best matching PAC
+ */
+
 import (
 	"fmt"
+	"github.com/gofiber/fiber/v2/log"
+	"sort"
 	"strings"
 
 	"github.com/timeforaninja/pacserver/pkg/IP"
@@ -18,11 +27,9 @@ func stringifyLookupTree(root *lookupTreeNode) string {
 
 func _stringifyLookupTree(node *lookupTreeNode, level int) string {
 	str := fmt.Sprintf(
-		"%s - %s | pac(%s, %s)\n",
-		strings.Repeat(" ", level),
-		node.data.IPMap.IPNet.ToString(),
-		node.data.IPMap.Filename,
-		strings.Join(node.data.IPMap.Hostnames, ", "),
+		"%s - %s\n",
+		strings.Repeat("\t", level),
+		node.data._stringify(),
 	)
 
 	for _, c := range node.children {
@@ -32,10 +39,25 @@ func _stringifyLookupTree(node *lookupTreeNode, level int) string {
 	return str
 }
 
+func _stringifyLookupStack(stack []*LookupElement) string {
+	str := ""
+	for level, node := range stack {
+		str += fmt.Sprintf(
+			"%s - %s\n",
+			strings.Repeat("\t", level),
+			node._stringify(),
+		)
+	}
+	return str
+}
+
 func insertTreeElement(root *lookupTreeNode, elem *LookupElement) {
 	newNode := &lookupTreeNode{data: elem, children: []*lookupTreeNode{}}
 
-	for i, child := range root.children {
+	// Iterate backwards
+	// in case we need to remove an element this does not screw up the counter
+	for i := len(root.children) - 1; i >= 0; i-- {
+		child := root.children[i]
 		// Check if the elem is a subnet of the child
 		if elem.isSubnetOf(*child.data) {
 			insertTreeElement(child, elem)
@@ -47,7 +69,12 @@ func insertTreeElement(root *lookupTreeNode, elem *LookupElement) {
 			// push child into new node
 			newNode.children = append(newNode.children, child)
 			// remove child from root
-			root.children = append(root.children[:i], root.children[i+1:]...)
+			// watch out for doing i+1 on the last element
+			if i == len(root.children)-1 {
+				root.children = root.children[:i]
+			} else {
+				root.children = append(root.children[:i], root.children[i+1:]...)
+			}
 		}
 	}
 	// If no subnet relation found, add newNode as a child
@@ -102,20 +129,43 @@ func simplifyTree(root *lookupTreeNode) {
 			simplifiedChildren = append(simplifiedChildren, child.children...)
 		}
 	}
+	// Sort the Children
+	sort.Slice(simplifiedChildren, func(i, j int) bool {
+		return simplifiedChildren[i].data.IPMap.CompareForSort(simplifiedChildren[j].data.IPMap)
+	})
 	// Replace the children with the simplified children
 	root.children = simplifiedChildren
 }
 
-func findInTree(root *lookupTreeNode, ip *IP.Net) *LookupElement {
+func findInTree(root *lookupTreeNode, ip *IP.Net) (*LookupElement, []*LookupElement) {
+	// Check for nil root to prevent panic
+	log.Debug("findInTree", root, ip.ToString())
+	if root == nil {
+		return nil, []*LookupElement{}
+	}
+	if root.data == nil || root.data.IPMap == nil {
+		return nil, []*LookupElement{}
+	}
+
 	for _, c := range root.children {
+		// Check for nil child data or IPMap to prevent panic
+		if c == nil || c.data == nil || c.data.IPMap == nil {
+			continue
+		}
+
 		if ip.IsSubnetOf(c.data.IPMap.IPNet) {
-			return findInTree(c, ip)
+			// Use a recursive call to check if we have more detailed children
+			node, stack := findInTree(c, ip)
+			// append to the front of the stack
+			stack = append([]*LookupElement{root.data}, stack...)
+			return node, stack
 		}
 	}
+
 	// no child matched
 	// check if it's our dummy root - this would mean no rule matches the location
 	if root.data.PAC == nil {
-		return nil
+		return nil, []*LookupElement{}
 	}
-	return root.data
+	return root.data, []*LookupElement{root.data}
 }

@@ -1,9 +1,20 @@
 package internal
 
+/**
+ * the webserver includes everything required for the webserver
+ * this means creation of the webserver, registering routes,
+ * and the main "getFileForIP" function to reply to user requests
+ */
+
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/gofiber/fiber/v2/log"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -12,7 +23,28 @@ import (
 )
 
 func LaunchServer() {
-	app := fiber.New()
+	// Write PID file for signal-based reloading
+	if err := WritePidFile(); err != nil {
+		log.Errorf("Failed to write PID file: %v", err)
+	}
+
+	app := fiber.New(fiber.Config{
+		// Enable tracking of response sizes for Prometheus metrics
+		EnablePrintRoutes: false,
+
+		// ReadTimeout: Maximum duration for reading the entire request (including body).
+		// If a client takes longer than this to send their request, the connection is closed.
+		ReadTimeout: 5 * time.Second,
+		// WriteTimeout: Maximum duration for writing the response to the client.
+		// If the server takes longer than this to send the complete response, the connection is terminated.
+		WriteTimeout: 10 * time.Second,
+		// IdleTimeout: Maximum time to wait for the next request when keep-alive is enabled.
+		// Connection is closed if no new request is received within this duration.
+		IdleTimeout: 120 * time.Second,
+	})
+
+	// Set up signal handling for SIGHUP, SIGINT, and SIGTERM
+	setupSignalHandling(app)
 
 	// Enable transport Compression
 	app.Use(compress.New())
@@ -21,16 +53,18 @@ func LaunchServer() {
 	app.Use(logger.New(logger.Config{
 		// For more options, see the Config section
 		Format:     "${time} ${ip} ${status} - ${method} ${path}\n",
-		TimeFormat: "2006-Jan-02",
+		TimeFormat: "2006-Jan-02 15:04:05",
 		Output:     getAccessLogger(),
 	}))
 
-	// Define (testing) route where the IP is passed as parameter
+	trackPac := setupPrometheus(app)
+
+	// Define (testing) route where the IP is passed as a parameter
 	app.Get("/:ip", func(c *fiber.Ctx) error {
 		ip := c.Params("ip")
 
 		// check the ip syntax
-		// if it fails we default to the / route
+		// if it fails we default to the "/" route
 		if !IP.IsValidPartialIP(ip) {
 			return c.Next()
 		}
@@ -44,7 +78,7 @@ func LaunchServer() {
 			octets = append(octets, "0")
 		}
 
-		return getFileForIP(c, strings.Join(octets, "."), cidr)
+		return getFileForIP(c, strings.Join(octets, "."), cidr, trackPac)
 	})
 
 	// second testing route allowing for ip and cidr
@@ -52,14 +86,14 @@ func LaunchServer() {
 		ip := c.Params("ip")
 
 		// (try to) read cidr
-		// if it fails we default to the /:ip route
+		// if it fails we default to the "/:ip" route
 		cidr, err := strconv.Atoi(c.Params("cidr"))
 		if err != nil {
 			return c.Next()
 		}
 
 		// check the ip syntax
-		// if it fails we default to the /:ip and then the / route
+		// if it fails we default to the "/:ip" and then the "/" route
 		if !IP.IsValidPartialIP(ip) {
 			return c.Next()
 		}
@@ -70,49 +104,82 @@ func LaunchServer() {
 			octets = append(octets, "0")
 		}
 
-		return getFileForIP(c, strings.Join(octets, "."), cidr)
+		return getFileForIP(c, strings.Join(octets, "."), cidr, trackPac)
 	})
 
 	// Default route for handling requests with no path
 	// use the requesters source ip
 	app.Get("/", func(c *fiber.Ctx) error {
-		return getFileForIP(c, c.IP(), 32)
+		return getFileForIP(c, c.IP(), 32, trackPac)
 	})
 
-	app.Listen(":8080")
+	// Start the server
+	err := app.Listen(fmt.Sprintf(":%d", GetConfig().Port))
+	if err != nil {
+		log.Errorf("Server error: %v", err)
+		// Ensure PID file is removed before exiting
+		err2 := RemovePidFile()
+		if err2 != nil {
+			log.Errorf("Failed to remove PID file: %v", err2)
+		}
+		os.Exit(1)
+	}
 }
 
-func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {
+// getFileForIP is the main function that resolves the PAC file for a given IP
+func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac *LookupElement)) error {
+	log.Debugf("Received request for IP: %s, Bits: %d", ipStr, networkBits)
 	ipNet, err := IP.NewIPNetFromMixed(ipStr, networkBits)
 	if err != nil {
 		// TODO: fallback to default PAC
+		trackPac(nil)
 		return err
 	}
 
 	// search db for best pac
-	pac := findInTree(lookupTree, &ipNet)
+	pac, stackTrace := findInTree(lookupTree, &ipNet)
 
-	// TODO: fallback to default PAC
 	if pac == nil {
-		pac = &LookupElement{IPMap: &ipMap{}}
+		// TODO: fallback to default PAC
+		trackPac(nil)
+		return errors.New("no PAC found for this IP")
 	}
 
-	if _, isDebug := c.Queries()["debug"]; isDebug {
-		jsonData, err := json.MarshalIndent(fiber.Map{
-			"raw_requester": fiber.Map{
-				"ip":   ipStr,
-				"cidr": networkBits,
-			},
-			"parsed_requester": ipNet,
-			"pac":              pac,
+	// Track which PAC file was served
+	trackPac(pac)
+
+	// Check for any case variation of "debug"
+	hasDebug := false
+	for key := range c.Queries() {
+		if strings.EqualFold(key, "debug") {
+			hasDebug = true
+			break
+		}
+	}
+	if hasDebug {
+		pacMeta, err := json.MarshalIndent(fiber.Map{
+			"requested":        fmt.Sprintf("%s/%d", ipStr, networkBits),
+			"parsed_requested": ipNet.ToString(),
+			"pac":              pac._stringify(),
 		}, "", "\t")
 		if err != nil {
+			log.Errorf("Error marshaling debug JSON: %v", err)
 			return err
 		}
 
-		return c.SendString(string(jsonData) + "\n\n---------------------------------------\n\n" + pac.getVariant(ipNet.NetworkAddress))
+		treeMeta := _stringifyLookupStack(stackTrace)
+
+		c.Type("text/plain")
+		return c.SendString(
+			strings.Join([]string{
+				string(pacMeta),
+				treeMeta,
+				pac.getVariant(),
+			},
+				"\n\n---------------------------------------\n\n",
+			))
 	} else {
 		c.Type("application/x-ns-proxy-autoconfig")
-		return c.SendString(pac.getVariant(ipNet.NetworkAddress))
+		return c.SendString(pac.getVariant())
 	}
 }

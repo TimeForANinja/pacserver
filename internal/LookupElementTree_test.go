@@ -114,7 +114,7 @@ func TestFindInTree(t *testing.T) {
 	// Run the test cases
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := findInTree(tc.tree, tc.ip)
+			got, _ := findInTree(tc.tree, tc.ip)
 
 			if (got == nil && tc.want != nil) || got != tc.want {
 				t.Errorf("findInTree() = %v, want %v", got, tc.want)
@@ -258,4 +258,203 @@ func TestBuildLookupTree(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSimplifyTreeSorting(t *testing.T) {
+	root := &lookupTreeNode{
+		data: &LookupElement{
+			IPMap: &ipMap{
+				IPNet:    forceIPNet("0.0.0.0", 0),
+				Filename: "root",
+			},
+		},
+		children: []*lookupTreeNode{
+			{data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("192.168.2.0", 24), Filename: "third"},
+			}},
+			{data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "second"},
+			}},
+			{data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("10.0.0.0", 8), Filename: "first"},
+			}},
+		},
+	}
+
+	simplifyTree(root)
+
+	// Verify sorting
+	if len(root.children) != 3 {
+		t.Errorf("Expected 3 children, got %d", len(root.children))
+	}
+
+	expectedOrder := []string{"first", "second", "third"}
+	for i, expected := range expectedOrder {
+		if root.children[i].data.IPMap.Filename != expected {
+			t.Errorf("Child at position %d: expected %s, got %s",
+				i, expected, root.children[i].data.IPMap.Filename)
+		}
+	}
+}
+
+func TestInsertTreeElement(t *testing.T) {
+	t.Run("Safe removal when iterating backwards", func(t *testing.T) {
+		// Create a root node with multiple children
+		root := &lookupTreeNode{
+			data: &LookupElement{
+				IPMap: &ipMap{
+					IPNet:    forceIPNet("0.0.0.0", 0),
+					Filename: "root",
+				},
+			},
+			children: []*lookupTreeNode{
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "child1"},
+					},
+				},
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.2.0", 24), Filename: "child2"},
+					},
+				},
+			},
+		}
+
+		// Insert a new element that should contain both existing children
+		// This will force both "old" children to be removed from the "root" node
+		// and pushed under the "partent" node
+		newElem := &LookupElement{
+			IPMap: &ipMap{
+				IPNet:    forceIPNet("192.168.0.0", 16),
+				Filename: "parent",
+			},
+		}
+
+		insertTreeElement(root, newElem)
+
+		// Verify that both children were properly moved
+		if len(root.children) != 1 {
+			t.Errorf("Expected root to have 1 child, got %d", len(root.children))
+		}
+		if root.children[0].data.IPMap.Filename != "parent" {
+			t.Errorf("Expected root.child to be 'parent', got %s", root.children[0].data.PAC.Filename)
+		}
+		if len(root.children[0].children) != 2 {
+			t.Errorf("Expected new node to have 2 children, got %d", len(root.children[0].children))
+		}
+	})
+
+	t.Run("Safe removal of last element", func(t *testing.T) {
+		// Create a root node with single child
+		root := &lookupTreeNode{
+			data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("0.0.0.0", 0), Filename: "root"},
+			},
+			children: []*lookupTreeNode{
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "lastChild"},
+					},
+				},
+			},
+		}
+
+		// Insert a new element that should contain the existing child
+		// the existing child is at last position, to check for index-out-of-bounds problems
+		newElem := &LookupElement{
+			IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "parent"},
+		}
+
+		insertTreeElement(root, newElem)
+
+		// Verify that the child was properly moved
+		if len(root.children) != 1 {
+			t.Errorf("Expected root to have 1 child, got %d", len(root.children))
+		}
+		if len(root.children[0].children) != 1 {
+			t.Errorf("Expected new node to have 1 child, got %d", len(root.children[0].children))
+		}
+		if root.children[0].children[0].data.IPMap.Filename != "lastChild" {
+			t.Errorf("Expected child to be 'lastChild', got %s", root.children[0].children[0].data.IPMap.Filename)
+		}
+	})
+
+	t.Run("Safe removal of middle element", func(t *testing.T) {
+		// Create a root node with three children
+		root := &lookupTreeNode{
+			data: &LookupElement{
+				IPMap: &ipMap{IPNet: forceIPNet("0.0.0.0", 0), Filename: "root"},
+			},
+			children: []*lookupTreeNode{
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("10.0.0.0", 8), Filename: "first"},
+					},
+				},
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("192.168.1.0", 24), Filename: "middle"},
+					},
+				},
+				{
+					data: &LookupElement{
+						IPMap: &ipMap{IPNet: forceIPNet("172.16.0.0", 12), Filename: "last"},
+					},
+				},
+			},
+		}
+
+		// Insert a new element that should contain only the middle child
+		newElem := &LookupElement{
+			IPMap: &ipMap{IPNet: forceIPNet("192.168.0.0", 16), Filename: "parent"},
+		}
+
+		insertTreeElement(root, newElem)
+
+		// Verify the structure
+		if len(root.children) != 3 {
+			t.Errorf("Expected root to have 3 children, got %d", len(root.children))
+		}
+
+		// Find the new parent node (it should be in sorted order)
+		var parentNode *lookupTreeNode
+		for _, child := range root.children {
+			if child.data.IPMap.Filename == "parent" {
+				parentNode = child
+				break
+			}
+		}
+
+		if parentNode == nil {
+			t.Fatal("Expected to find 'parent' node")
+		}
+
+		// Verify the parent has the middle child
+		if len(parentNode.children) != 1 {
+			t.Errorf("Expected parent to have 1 child, got %d", len(parentNode.children))
+		}
+
+		if parentNode.children[0].data.IPMap.Filename != "middle" {
+			t.Errorf("Expected child to be 'middle', got %s", parentNode.children[0].data.IPMap.Filename)
+		}
+
+		// Verify other children remained in root
+		var foundFirst, foundLast bool
+		for _, child := range root.children {
+			if child.data.IPMap.Filename == "first" {
+				foundFirst = true
+			}
+			if child.data.IPMap.Filename == "last" {
+				foundLast = true
+			}
+		}
+
+		if !foundFirst {
+			t.Error("First child missing from root")
+		}
+		if !foundLast {
+			t.Error("Last child missing from root")
+		}
+	})
 }

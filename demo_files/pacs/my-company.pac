@@ -2,7 +2,7 @@
 // This is the {{ .Filename }} PAC-File
 // For Changes please reach out to {{ .Contact }}
 
-var proxy = "{{ .Proxy }}"
+var proxy = "my-proxy01:8080"
 
 function FindProxyForURL(url, host) {
     if (host === "localhost"

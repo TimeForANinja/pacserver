@@ -1,9 +1,14 @@
-
 ipMapFile: "demo_files/zones.csv"
 pacRoot: "demo_files/pacs"
 contactInfo: "NOC Germany"
 accessLogFile: "./access.log"
 eventLogFile: "./events.log"
+pidFile: "./pacserver.pid"
+ignoreMinors: true
 # TODO: maxCacheAge < 0 is the same as doAutoRefresh NO
 doAutoRefresh: true
 maxCacheAge: 3600 # 60x60 > 1h cache age
+port: 8081
+# Prometheus metrics configuration
+prometheusEnabled: true
+prometheusPath: "/metrics"
