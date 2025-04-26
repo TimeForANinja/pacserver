@@ -10,6 +10,7 @@ import (
 	"github.com/cakturk/go-netstat/netstat"
 	"github.com/gofiber/fiber/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	myPrometheus "github.com/timeforaninja/pacserver/pkg/prometheus"
 	"strconv"
 	"time"
 )
@@ -35,12 +36,26 @@ var (
 	})
 
 	// Response time metrics
-	openSocketCounter = prometheus.NewGaugeVec(
+	openSocketCounter = myPrometheus.NewGaugeVecFunc(
 		prometheus.GaugeOpts{
 			Name: "app_socket_states",
 			Help: "number of active sockets by state",
 		},
 		[]string{"state"},
+		func() map[string]float64 {
+			// list all the TCP sockets for your HTTP server
+			tabs, err := netstat.TCPSocks(netstat.NoopFilter)
+			if err != nil {
+				return make(map[string]float64)
+			}
+			// Create a map and count states
+			stateCounts := make(map[string]float64)
+			for _, tab := range tabs {
+				state := tab.State.String()
+				stateCounts[state]++
+			}
+			return stateCounts
+		},
 	)
 
 	// HTTP status code metrics
@@ -75,7 +90,12 @@ var (
 	// those include cgo, memory and cpu times
 )
 
-func init() {
+func setupPrometheus(app *fiber.App) func(pac *LookupElement) {
+	// skip Prometheus setup if not enabled
+	if !GetConfig().PrometheusEnabled {
+		return func(pac *LookupElement) {}
+	}
+
 	// Register custom metrics with Prometheus
 	prometheus.MustRegister(responseTimeHistogram)
 	prometheus.MustRegister(responseTimeSummary)
@@ -84,39 +104,6 @@ func init() {
 	prometheus.MustRegister(pacFileCounter)
 	prometheus.MustRegister(dataInCounter)
 	prometheus.MustRegister(dataOutCounter)
-}
-
-// updateResourceMetrics periodically updates CPU, memory, and thread metrics
-func updateResourceMetrics() {
-	for {
-		// list all the TCP sockets for your HTTP server
-		tabs, err := netstat.TCPSocks(netstat.NoopFilter)
-		if err == nil {
-			// Create a map and count states
-			stateCounts := make(map[string]float64)
-			for _, tab := range tabs {
-				state := tab.State.String()
-				stateCounts[state]++
-			}
-
-			// Set all values at once, which should perform slightly better
-			for state, count := range stateCounts {
-				openSocketCounter.WithLabelValues(state).Set(count)
-			}
-		}
-
-		time.Sleep(1 * time.Second)
-	}
-}
-
-func setupPrometheus(app *fiber.App) func(pac *LookupElement) {
-	// skip Prometheus setup if not enabled
-	if !GetConfig().PrometheusEnabled {
-		return func(pac *LookupElement) {}
-	}
-
-	// Start resource metrics collection in a separate goroutine
-	go updateResourceMetrics()
 
 	// register prometheus app route
 	prom := fiberprometheus.New("pacserver")
