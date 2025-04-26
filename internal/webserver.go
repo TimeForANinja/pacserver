@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ansrivas/fiberprometheus/v2"
+	"github.com/cakturk/go-netstat/netstat"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -22,8 +23,17 @@ var (
 	responseTimeHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pacserver_response_time_seconds",
 		Help:    "Response time distribution in seconds",
-		Buckets: prometheus.DefBuckets,
+		Buckets: []float64{1e-7, 5e-7, 1e-6, 5e-6, 1e-5, 5e-5, 0.0001, 0.0005, 0.001, 0.005, 0.01},
 	})
+
+	// Response time metrics
+	openSocketCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pacserver_open_sockets_total",
+			Help: "Total number of Open Sockets and State",
+		},
+		[]string{"state"},
+	)
 
 	// CPU and Memory metrics
 	cpuUsageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -56,7 +66,6 @@ var (
 		Name: "pacserver_data_in_bytes_total",
 		Help: "Total bytes received",
 	})
-
 	dataOutCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "pacserver_data_out_bytes_total",
 		Help: "Total bytes sent",
@@ -66,6 +75,7 @@ var (
 func init() {
 	// Register custom metrics with Prometheus
 	prometheus.MustRegister(responseTimeHistogram)
+	prometheus.MustRegister(openSocketCounter)
 	prometheus.MustRegister(cpuUsageGauge)
 	prometheus.MustRegister(memUsageGauge)
 	prometheus.MustRegister(threadCountGauge)
@@ -85,11 +95,21 @@ func updateResourceMetrics() {
 		runtime.ReadMemStats(&memStats)
 		memUsageGauge.Set(float64(memStats.Alloc))
 
+		// sockets
+		// list all the TCP sockets in state FIN_WAIT_1 for your HTTP server
+		tabs, err := netstat.TCPSocks(netstat.NoopFilter)
+		if err == nil {
+			openSocketCounter.Reset()
+			for _, tab := range tabs {
+				openSocketCounter.WithLabelValues(tab.State.String()).Inc()
+			}
+		}
+
 		// CPU usage is more complex and would require additional libraries
 		// For simplicity, we're not implementing actual CPU usage here
 		// In a production environment, you might use a library like gopsutil
 
-		time.Sleep(15 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -132,7 +152,7 @@ func LaunchServer() {
 		dataOutCounter.Add(float64(len(c.Response().Body())))
 
 		// Record HTTP errors
-		if c.Response().StatusCode() >= 400 {
+		if c.Response().StatusCode() != 200 {
 			httpErrorCounter.WithLabelValues(strconv.Itoa(c.Response().StatusCode())).Inc()
 		}
 
