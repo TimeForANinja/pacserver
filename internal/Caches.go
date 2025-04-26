@@ -16,7 +16,7 @@ var lookupTree *lookupTreeNode
 // directly after start
 func InitCaches() error {
 	var err error
-	config := getConfig()
+	config := GetConfig()
 
 	cachedIPMaps, err = readIPMap(config.IPMapFile)
 	if err != nil {
@@ -41,7 +41,7 @@ func InitCaches() error {
 }
 
 func executeRegular(task func()) {
-	tick := time.Tick(time.Duration(getConfig().MaxCacheAge) * time.Second)
+	tick := time.Tick(time.Duration(GetConfig().MaxCacheAge) * time.Second)
 	for range tick {
 		log.Infof("Max Cache Age reached - Refreshing Lookup Tree")
 		task()
@@ -49,8 +49,8 @@ func executeRegular(task func()) {
 }
 
 func updateLookupTree() {
-	config := getConfig()
-	table := buildLookupElements(config.IPMapFile, config.PACRoot, conf.ContactInfo)
+	config := GetConfig()
+	table := buildLookupElements(config.IPMapFile, config.PACRoot, config.ContactInfo)
 	tree := buildLookupTree(table)
 	log.Infof("The following LookupTree was loaded:\n%s", stringifyLookupTree(tree))
 	lookupTree = tree

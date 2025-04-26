@@ -168,9 +168,9 @@ func LaunchServer() {
 	})
 
 	// Setup Prometheus middleware if enabled
-	if conf.PrometheusEnabled {
+	if GetConfig().PrometheusEnabled {
 		prom := fiberprometheus.New("pacserver")
-		prom.RegisterAt(app, conf.PrometheusPath)
+		prom.RegisterAt(app, GetConfig().PrometheusPath)
 	}
 
 	// Define (testing) route where the IP is passed as a parameter
@@ -228,7 +228,7 @@ func LaunchServer() {
 	})
 
 	// Start the server
-	log.Fatal(app.Listen(fmt.Sprintf(":%d", conf.Port)))
+	log.Fatal(app.Listen(fmt.Sprintf(":%d", GetConfig().Port)))
 }
 
 func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int) error {

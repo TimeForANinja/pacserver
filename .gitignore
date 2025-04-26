@@ -24,6 +24,7 @@ go.work
 *.log
 *.log.gz
 dist/
+*.pid
 
 # Python-Branch
 .venv
