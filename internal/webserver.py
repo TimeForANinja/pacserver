@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Request, Response
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
@@ -94,5 +95,7 @@ async def launch_server():
     server_conf.accesslog = get_access_logger()
     server_conf.errorlog = get_event_log()
     server_conf.bind = ["0.0.0.0:8080"]
+    server_conf.workers = os.cpu_count()
+    server_conf.backlog = 400
 
     await serve(app, server_conf)
