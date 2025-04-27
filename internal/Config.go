@@ -106,7 +106,6 @@ func validateConfig(conf *Config) error {
 	}
 
 	knownLevels := []string{"DEBUG", "INFO", "WARN", "ERROR"}
-	fmt.Println(knownLevels, conf.Loglevel, strings.ToUpper(conf.Loglevel))
 	if !slices.Contains(knownLevels, strings.ToUpper(conf.Loglevel)) {
 		return fmt.Errorf("loglevel must be one of %v", knownLevels)
 	}

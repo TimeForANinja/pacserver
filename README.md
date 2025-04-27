@@ -273,3 +273,29 @@ go test -v ./...
 ### Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Profiling
+Profiling can help you understand how your server spends his time
+#### Install
+To start profiling only a few modifications to `internal/webserver.go` are required.
+```go
+import (
+	"github.com/gofiber/fiber/v2/middleware/pprof"
+	// ...
+)
+// ...
+app.Use(pprof.New())
+```
+
+It might also be required to install graphviz.
+You might be able to make your life easier by using chocolatey:
+```cmd
+choco install graphviz
+```
+
+#### Start Profiling
+The profiler can be started with a single command.
+It will automatically fetch a 30s profile from the API and load a browser with the Graphic.
+```
+go tool pprof -http 127.0.0.1:8079 "http://localhost:8080/debug/pprof/profile?seconds=30"
+```

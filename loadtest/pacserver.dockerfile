@@ -28,5 +28,5 @@ EOF
 # Copy in the source code
 EXPOSE 8080
 
-ENTRYPOINT ["/app/dist/pacserver"]
-CMD ["--serve"]
+# "sh -c" is required for prefork
+CMD ["sh", "-c", "/app/dist/pacserver --serve"]

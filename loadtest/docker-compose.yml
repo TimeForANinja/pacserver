@@ -53,7 +53,7 @@ services:
     command: --config /mnt/locust/worker.conf
     deploy:
       # set to 0 when using processes
-      replicas: 20
+      replicas: 10
 
   ########################
   # Grafana & Prometheus #

@@ -10,13 +10,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gofiber/fiber/v2/log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/timeforaninja/pacserver/pkg/IP"
@@ -31,6 +31,8 @@ func LaunchServer() {
 	app := fiber.New(fiber.Config{
 		// Enable tracking of response sizes for Prometheus metrics
 		EnablePrintRoutes: false,
+
+		// TODO: check if setting "Prefork: true," improves performance. First tests look like it doesn't
 
 		// ReadTimeout: Maximum duration for reading the entire request (including body).
 		// If a client takes longer than this to send their request, the connection is closed.
@@ -169,7 +171,7 @@ func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac
 
 		treeMeta := _stringifyLookupStack(stackTrace)
 
-		c.Type("text/plain")
+		c.Set("content-type", "text/plain")
 		return c.SendString(
 			strings.Join([]string{
 				string(pacMeta),
@@ -179,7 +181,7 @@ func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac
 				"\n\n---------------------------------------\n\n",
 			))
 	} else {
-		c.Type("application/x-ns-proxy-autoconfig")
+		c.Set("content-type", "application/x-ns-proxy-autoconfig")
 		return c.SendString(pac.getVariant())
 	}
 }
