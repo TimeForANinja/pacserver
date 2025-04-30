@@ -2,16 +2,14 @@ package internal
 
 import (
 	"fmt"
+	"github.com/gofiber/fiber/v2/log"
+	"github.com/timeforaninja/pacserver/pkg/utils"
+	"gopkg.in/natefinch/lumberjack.v2"
+	"gopkg.in/yaml.v3"
 	"io"
 	"os"
 	"regexp"
-	"slices"
 	"strconv"
-	"strings"
-
-	"github.com/gofiber/fiber/v2/log"
-	"gopkg.in/natefinch/lumberjack.v2"
-	"gopkg.in/yaml.v3"
 )
 
 type YAMLConfig struct {
@@ -78,30 +76,23 @@ func LoadConfig(filename string) error {
 	return nil
 }
 
-func ifIsNil[T comparable](val *T, def T) T {
-	if val == nil {
-		return def
-	}
-	return *val
-}
-
 func overloadDefaults(conf *YAMLConfig) *Config {
 	newConf := &Config{}
 	// Set defaults and map to Config
-	newConf.IPMapFile = ifIsNil(conf.IPMapFile, "data/zones.csv")
-	newConf.PACRoot = ifIsNil(conf.PACRoot, "data/pacs")
-	newConf.DefaultPACFile = ifIsNil(conf.DefaultPACFile, newConf.PACRoot+"\\default.pac")
-	newConf.WPADFile = ifIsNil(conf.WPADFile, newConf.PACRoot+"\\wpad.dat")
-	newConf.ContactInfo = ifIsNil(conf.ContactInfo, "Your Help Desk")
-	newConf.AccessLogFile = ifIsNil(conf.AccessLogFile, "access.log")
-	newConf.EventLogFile = ifIsNil(conf.EventLogFile, "event.log")
-	newConf.MaxCacheAge = ifIsNil(conf.MaxCacheAge, int64(900))
-	newConf.PidFile = ifIsNil(conf.PidFile, "pacserver.pid")
-	newConf.Port = ifIsNil(conf.Port, uint16(8080))
-	newConf.PrometheusEnabled = ifIsNil(conf.PrometheusEnabled, false)
-	newConf.PrometheusPath = ifIsNil(conf.PrometheusPath, "/metrics")
-	newConf.IgnoreMinors = ifIsNil(conf.IgnoreMinors, false)
-	newConf.Loglevel = ifIsNil(conf.Loglevel, "INFO")
+	newConf.IPMapFile = utils.IfIsNil(conf.IPMapFile, "data/zones.csv")
+	newConf.PACRoot = utils.IfIsNil(conf.PACRoot, "data/pacs")
+	newConf.DefaultPACFile = utils.IfIsNil(conf.DefaultPACFile, newConf.PACRoot+"\\default.pac")
+	newConf.WPADFile = utils.IfIsNil(conf.WPADFile, newConf.PACRoot+"\\wpad.dat")
+	newConf.ContactInfo = utils.IfIsNil(conf.ContactInfo, "Your Help Desk")
+	newConf.AccessLogFile = utils.IfIsNil(conf.AccessLogFile, "access.log")
+	newConf.EventLogFile = utils.IfIsNil(conf.EventLogFile, "event.log")
+	newConf.MaxCacheAge = utils.IfIsNil(conf.MaxCacheAge, int64(900))
+	newConf.PidFile = utils.IfIsNil(conf.PidFile, "pacserver.pid")
+	newConf.Port = utils.IfIsNil(conf.Port, uint16(8080))
+	newConf.PrometheusEnabled = utils.IfIsNil(conf.PrometheusEnabled, false)
+	newConf.PrometheusPath = utils.IfIsNil(conf.PrometheusPath, "/metrics")
+	newConf.IgnoreMinors = utils.IfIsNil(conf.IgnoreMinors, false)
+	newConf.Loglevel = utils.IfIsNil(conf.Loglevel, "INFO")
 	return newConf
 }
 
@@ -112,9 +103,9 @@ func validateConfig(conf *Config) error {
 		return fmt.Errorf("contact info contains invalid characters")
 	}
 
-	knownLevels := []string{"DEBUG", "INFO", "WARN", "ERROR"}
-	if !slices.Contains(knownLevels, strings.ToUpper(conf.Loglevel)) {
-		return fmt.Errorf("loglevel must be one of %v", knownLevels)
+	err := utils.ValidateLogLevel(conf.Loglevel)
+	if err != nil {
+		return err
 	}
 
 	// Validate the Zone-File exists
@@ -151,17 +142,7 @@ func GetConfig() *Config {
 var accessLog *lumberjack.Logger
 
 func (conf *Config) getLoglevel() log.Level {
-	switch strings.ToUpper(conf.Loglevel) {
-	case "DEBUG":
-		return log.LevelDebug
-	case "INFO":
-		return log.LevelInfo
-	case "WARN":
-		return log.LevelWarn
-	case "ERROR":
-		return log.LevelError
-	}
-	return log.LevelInfo
+	return utils.GetLoglevel(conf.Loglevel)
 }
 
 func InitEventLogger() {

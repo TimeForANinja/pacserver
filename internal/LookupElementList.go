@@ -12,6 +12,7 @@ package internal
 
 import (
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/timeforaninja/pacserver/pkg/utils"
 )
 
 var (
@@ -40,24 +41,31 @@ func buildLookupElementList(ipMapFile, pacRoot, contactInfo string) ([]*LookupEl
 	if err1 != nil && err2 != nil {
 		log.Errorf("Completely failed to load IPMap and PACs - keep serving cached data")
 		// no need to recalculate Tree since nothing can change
-		return nil, 1
+		return nil, 2
 	} else if err1 != nil {
-		log.Errorf("Completely failed to load IPMap - loading new? PACs with cached Zones")
+		log.Errorf("Completely failed to load IPMap - loading new PACs with cached Zones")
 		newIPMaps = cachedIPMaps
-		cachedPACs = newPACs
 		problemCounter++
 	} else if err2 != nil {
-		log.Errorf("Completely failed to load PACs - loading new? Zones with cached PACs")
+		log.Errorf("Completely failed to load PACs - loading new Zones with cached PACs")
 		newPACs = oldPACs
-		cachedIPMaps = newIPMaps
 		problemCounter++
-	} else {
-		cachedIPMaps = newIPMaps
-		cachedPACs = newPACs
 	}
+
+	list, keepPACs, probs3 := matchIPMapToPac(newPACs, oldPACs, newIPMaps, contactInfo)
+	cachedPACs = append(newPACs, keepPACs...)
+	cachedIPMaps = newIPMaps
+	return list, probs3 + problemCounter
+}
+
+func matchIPMapToPac(newPACs, oldPACs []*pacTemplate, newIPMaps []*ipMap, contact string) ([]*LookupElement, []*pacTemplate, int) {
+	problemCounter := 0
 
 	// build new lookup elements
 	res := make([]*LookupElement, 0)
+	// list of PACs that should stay in cache since they are still referenced
+	keepPACs := make(map[string]*pacTemplate)
+
 	for _, ipm := range newIPMaps {
 		// for each IPMap, (try to) find the corresponding pac
 		var match *pacTemplate
@@ -81,7 +89,7 @@ func buildLookupElementList(ipMapFile, pacRoot, contactInfo string) ([]*LookupEl
 			if match != nil {
 				log.Warnf("Unknown PAC %s, using available Cached Version", ipm.Filename)
 				// keep the old pac in the cache for the next check
-				newPACs = append(newPACs, match)
+				keepPACs[match.Filename] = match
 				problemCounter++
 			} else {
 				log.Warnf("Unknown PAC %s, no Cached Version available, skipping Zone %s", ipm.Filename, ipm.IPNet.ToString())
@@ -92,7 +100,7 @@ func buildLookupElementList(ipMapFile, pacRoot, contactInfo string) ([]*LookupEl
 		// if we found a match (after checking new and cached PACs)
 		// then try to parse it
 		if match != nil {
-			le, err := NewLookupElement(ipm, match, contactInfo)
+			le, err := NewLookupElement(ipm, match, contact)
 			if err != nil {
 				// NewLookupElement only fails when the Template could not be filled with the variables
 				// Log it, and recover by skipping this zone
@@ -103,5 +111,5 @@ func buildLookupElementList(ipMapFile, pacRoot, contactInfo string) ([]*LookupEl
 			res = append(res, &le)
 		}
 	}
-	return res, problemCounter
+	return res, utils.MapToArray(keepPACs), problemCounter
 }

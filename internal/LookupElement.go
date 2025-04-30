@@ -15,7 +15,7 @@ type LookupElement struct {
 	IPMap *ipMap       `json:"IPMap"`
 	PAC   *pacTemplate `json:"PAC"`
 	// the parsed content of the PAC Template
-	variant string
+	Variant string
 }
 
 func (le1 LookupElement) isIdenticalNet(le2 LookupElement) bool {
@@ -36,10 +36,6 @@ func (le1 LookupElement) isSubnetOf(le2 LookupElement) bool {
 
 func (le1 LookupElement) getRawCIDR() uint8 {
 	return le1.IPMap.IPNet.GetRawCIDR()
-}
-
-func (le1 LookupElement) getVariant() string {
-	return le1.variant
 }
 
 func (le1 LookupElement) _stringify() string {
@@ -74,6 +70,6 @@ func NewLookupElement(ipMap *ipMap, pac *pacTemplate, contactInfo string) (Looku
 	return LookupElement{
 		IPMap:   ipMap,
 		PAC:     pac,
-		variant: variant,
+		Variant: variant,
 	}, nil
 }

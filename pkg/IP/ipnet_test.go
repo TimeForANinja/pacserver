@@ -316,3 +316,119 @@ func TestIsIdentical(t *testing.T) {
 		})
 	}
 }
+
+func TestToString(t *testing.T) {
+	tests := []struct {
+		name     string
+		ipNet    Net
+		expected string
+	}{
+		{
+			name: "Class A network",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 167772160}, // 10.0.0.0
+				CIDR:           CIDR{Value: 8, Mask: Mask8},
+			},
+			expected: "10.0.0.0/8",
+		},
+		{
+			name: "Class B network",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 3232235520}, // 192.168.0.0
+				CIDR:           CIDR{Value: 16, Mask: Mask16},
+			},
+			expected: "192.168.0.0/16",
+		},
+		{
+			name: "Class C network",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 3232235520}, // 192.168.0.0
+				CIDR:           CIDR{Value: 24, Mask: Mask24},
+			},
+			expected: "192.168.0.0/24",
+		},
+		{
+			name: "Host address",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 3232235521}, // 192.168.0.1
+				CIDR:           CIDR{Value: 32, Mask: Mask32},
+			},
+			expected: "192.168.0.1/32",
+		},
+		{
+			name: "Zero address",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 0}, // 0.0.0.0
+				CIDR:           CIDR{Value: 0, Mask: Mask0},
+			},
+			expected: "0.0.0.0/0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.ipNet.ToString()
+			if result != tt.expected {
+				t.Errorf("ToString() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetRawCIDR(t *testing.T) {
+	tests := []struct {
+		name     string
+		ipNet    Net
+		expected uint8
+	}{
+		{
+			name: "CIDR 8",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 167772160}, // 10.0.0.0
+				CIDR:           CIDR{Value: 8, Mask: Mask8},
+			},
+			expected: 8,
+		},
+		{
+			name: "CIDR 16",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 3232235520}, // 192.168.0.0
+				CIDR:           CIDR{Value: 16, Mask: Mask16},
+			},
+			expected: 16,
+		},
+		{
+			name: "CIDR 24",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 3232235520}, // 192.168.0.0
+				CIDR:           CIDR{Value: 24, Mask: Mask24},
+			},
+			expected: 24,
+		},
+		{
+			name: "CIDR 32",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 3232235521}, // 192.168.0.1
+				CIDR:           CIDR{Value: 32, Mask: Mask32},
+			},
+			expected: 32,
+		},
+		{
+			name: "CIDR 0",
+			ipNet: Net{
+				NetworkAddress: IP{Value: 0}, // 0.0.0.0
+				CIDR:           CIDR{Value: 0, Mask: Mask0},
+			},
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.ipNet.GetRawCIDR()
+			if result != tt.expected {
+				t.Errorf("GetRawCIDR() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}

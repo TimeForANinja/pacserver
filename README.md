@@ -37,7 +37,7 @@ The app supports 3 modes:
   ```
   pacserver --test
   ```
-  
+
 ### Getting PAC Files from the Application
 
 To receive PAC Files you simply send GET-Requests to the Application.
@@ -247,6 +247,12 @@ pacserver/
 │   ├── IP/                    # IP address handling utilities
 │   └── utils/                 # General utilities
 ├── docs/                      # Documentation files
+├── loadtest/                  # Load testing environment
+│   ├── locust/                # Locust load testing configuration
+│   ├── prometheus/            # Prometheus configuration for metrics
+│   ├── apache.dockerfile      # Dockerfile for Apache PAC server (for comparison)
+│   ├── docker-compose.yml     # Docker Compose setup for load testing
+│   └── pacserver.dockerfile   # Dockerfile for PAC server
 └── demo_files/                # Example configuration files
     ├── pacs/                  # Example PAC files
     └── zones.csv              # Example zone mapping
@@ -275,6 +281,40 @@ go test -v ./...
 ### Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Load Testing
+
+The PAC-Server includes a comprehensive load testing environment in the `loadtest` directory. This environment allows you to:
+
+1. Compare the performance of the PAC-Server with an Apache-based PAC server
+2. Generate realistic load using Locust
+3. Monitor performance metrics using Prometheus and Grafana
+
+#### Running Load Tests
+
+To run load tests:
+
+1. Navigate to the `loadtest` directory
+2. Start the load testing environment:
+   ```
+   docker-compose up -d
+   ```
+3. Access the Locust web interface at http://localhost:8089
+4. Configure and start your load test
+5. Monitor results in real-time using Grafana at http://localhost:3000 (default credentials: admin/grafana)
+
+The load testing environment includes:
+- PAC-Server running at http://localhost:8080
+- Apache PAC server (for comparison) at http://localhost:8081
+- Prometheus for metrics collection at http://localhost:9090
+- Grafana for visualization at http://localhost:3000
+
+#### Customizing Load Tests
+
+You can customize the load tests by modifying:
+- `loadtest/locust/locustfile.py` - Defines the test scenarios
+- `loadtest/prometheus/prometheus.yml` - Configures Prometheus metrics collection
+- `loadtest/docker-compose.yml` - Adjusts resource limits and scaling
 
 ### Profiling
 Profiling can help you understand how your server spends his time

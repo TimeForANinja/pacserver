@@ -79,21 +79,15 @@ func LaunchServer() {
 		log.Debugf("Received for /:ip with ip=%s", ip)
 
 		// check the ip syntax
-		// if it fails we default to the "/" route
+		// if it fails, we default to serving for the source ip
 		if !IP.IsValidPartialIP(ip) {
-			return c.Next()
+			return serveFromIPNet(c, c.IP(), 32, trackPac)
 		}
 
-		// Split the IP into octets
-		octets := strings.Split(ip, ".")
-		cidr := len(octets) * 8
+		// count the IP octets to get the bit-length
+		cidr := len(strings.Split(ip, ".")) * 8
 
-		// Pad the IP to always be 4 octets
-		for len(octets) < 4 {
-			octets = append(octets, "0")
-		}
-
-		return serveFromIP(c, strings.Join(octets, "."), cidr, trackPac)
+		return serveFromIPNet(c, IP.PadPartialIP(ip), cidr, trackPac)
 	})
 
 	// second testing route allowing for ip and cidr
@@ -102,32 +96,26 @@ func LaunchServer() {
 		log.Debugf("Received for /:ip/:cidr with ip=%s and cidr=%s", ip, c.Params("cidr"))
 
 		// (try to) read cidr
-		// if it fails we default to the "/:ip" route
+		// if it fails, we default to a /32 host net
 		cidr, err := strconv.Atoi(c.Params("cidr"))
 		if err != nil {
-			return c.Next()
+			cidr = 32
 		}
 
 		// check the ip syntax
-		// if it fails we default to the "/:ip" and then the "/" route
+		// if it fails, we default to serving for the source ip
 		if !IP.IsValidPartialIP(ip) {
-			return c.Next()
+			return serveFromIPNet(c, c.IP(), cidr, trackPac)
 		}
 
-		// Pad the IP to always be 4 octets
-		octets := strings.Split(ip, ".")
-		for len(octets) < 4 {
-			octets = append(octets, "0")
-		}
-
-		return serveFromIP(c, strings.Join(octets, "."), cidr, trackPac)
+		return serveFromIPNet(c, IP.PadPartialIP(ip), cidr, trackPac)
 	})
 
 	// Default route for handling requests with no path
 	// use the requesters source ip
 	app.Get("/", func(c *fiber.Ctx) error {
 		log.Debug("Received for /")
-		return serveFromIP(c, c.IP(), 32, trackPac)
+		return serveFromIPNet(c, c.IP(), 32, trackPac)
 	})
 
 	// Start the server
@@ -144,7 +132,7 @@ func LaunchServer() {
 }
 
 // getFileForIP is the main function that resolves the PAC file for a given IP
-func serveFromIP(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac *LookupElement)) error {
+func serveFromIPNet(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac *LookupElement)) error {
 	log.Debugf("Received request for IP: %s, Bits: %d", ipStr, networkBits)
 	pac, ipNet, stackTrace := findPAC(ipStr, networkBits)
 
@@ -188,13 +176,13 @@ func servePAC(
 			strings.Join([]string{
 				string(pacMeta),
 				treeMeta,
-				pac.getVariant(),
+				pac.Variant,
 			},
 				"\n\n---------------------------------------\n\n",
 			))
 	} else {
 		c.Set("content-type", "application/x-ns-proxy-autoconfig")
-		return c.SendString(pac.getVariant())
+		return c.SendString(pac.Variant)
 	}
 }
 
@@ -202,7 +190,7 @@ func findPAC(ipStr string, networkBits int) (*LookupElement, *IP.Net, []*LookupE
 	ipNet, err := IP.NewIPNetFromMixed(ipStr, networkBits)
 	if err != nil {
 		// fallback to the root/default node with the default pac
-		return lookupTree.data, &IP.Net{}, make([]*LookupElement, 0)
+		return lookupTree.data, &IP.Net{}, []*LookupElement{lookupTree.data}
 	}
 
 	// search db for best pac

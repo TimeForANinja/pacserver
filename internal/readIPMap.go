@@ -7,6 +7,7 @@ package internal
 import (
 	"bufio"
 	"encoding/csv"
+	"fmt"
 	"github.com/timeforaninja/pacserver/pkg/utils"
 	"os"
 	"path/filepath"
@@ -53,53 +54,57 @@ func readIPMap(relPath string) ([]*ipMap, error, int) {
 		textLine := scanner.Text()
 		lineCount++
 
-		// Skip comment-lines
-		if strings.HasPrefix(textLine, "//") || strings.HasPrefix(textLine, "#") {
-			continue
-		}
-
-		// Skip empty lines
-		if len(textLine) == 0 {
-			continue
-		}
-
-		// parse line as csv
-		r := csv.NewReader(strings.NewReader(textLine))
-		r.Comma = ',' // set comma as the field delimiter
-		fields, err := r.Read()
+		mapping, err := parseIPMapLine(textLine)
 		if err != nil {
-			log.Warnf("Unable to Parse CSV Line %d: %s", lineCount, err.Error())
+			log.Errorf("Failed to parse CSV Line %d: %s", lineCount, err.Error())
 			problemCounter++
-			continue
 		}
-
-		// trim whitespace around all fields
-		for i, field := range fields {
-			fields[i] = strings.TrimSpace(field)
+		// mapping=nil and error=nil for skipping lines
+		if mapping != nil {
+			// if we made it this far then store the zone
+			mappings = append(mappings, mapping)
 		}
-
-		// Ensure the CSV has exactly two fields
-		if len(fields) != 3 {
-			log.Warnf("Invalid number of fields on line %d, expected 3 buz got %d", lineCount, len(fields))
-			problemCounter++
-			continue
-		}
-
-		ipNet, err := IP.NewIPNetFromStr(fields[0], fields[1])
-		if err != nil {
-			log.Warnf("Unable to parse IP From Line %d: %s", lineCount, err.Error())
-			problemCounter++
-			continue
-		}
-
-		mapping := &ipMap{
-			IPNet:    ipNet,
-			Filename: utils.NormalizePath(fields[2]),
-		}
-
-		// if we made it this far then store the zone
-		mappings = append(mappings, mapping)
 	}
 
 	return mappings, nil, problemCounter
+}
+
+func parseIPMapLine(line string) (*ipMap, error) {
+	// Skip comment-lines
+	if strings.HasPrefix(line, "//") || strings.HasPrefix(line, "#") {
+		return nil, nil
+	}
+
+	// Skip empty lines
+	if len(line) == 0 {
+		return nil, nil
+	}
+
+	// parse line as csv
+	r := csv.NewReader(strings.NewReader(line))
+	r.Comma = ',' // set comma as the field delimiter
+	fields, err := r.Read()
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse line as csv: %s", err.Error())
+	}
+
+	// trim whitespace around all fields
+	for i, field := range fields {
+		fields[i] = strings.TrimSpace(field)
+	}
+
+	// Ensure the CSV has exactly two fields
+	if len(fields) != 3 {
+		return nil, fmt.Errorf("invalid number of fields, expected 3 buz got %d", len(fields))
+	}
+
+	ipNet, err := IP.NewIPNetFromStr(fields[0], fields[1])
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse IP: %s", err.Error())
+	}
+
+	return &ipMap{
+		IPNet:    ipNet,
+		Filename: utils.NormalizePath(fields[2]),
+	}, nil
 }
