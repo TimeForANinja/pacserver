@@ -82,17 +82,19 @@ func insertTreeElement(root *lookupTreeNode, elem *LookupElement) {
 }
 
 func buildLookupTree(elements []*LookupElement) *lookupTreeNode {
+	conf := GetConfig()
 	// build a "fake" root element
 	// this massively simplifies code since we
 	// a) always only have a single root element
 	// b) can make sure that we never have to swap the root
 	rootIP, _ := IP.NewIPNetFromMixed("0.0.0.0", 0)
+	rootElement, _ := NewLookupElement(&ipMap{
+		IPNet:    rootIP,
+		Filename: conf.DefaultPACFile,
+	}, rootPAC.PAC, conf.ContactInfo)
 	var root = &lookupTreeNode{
-		data: &LookupElement{
-			IPMap: &ipMap{
-				IPNet: rootIP,
-			},
-		},
+		data:     &rootElement,
+		children: make([]*lookupTreeNode, 0),
 	}
 
 	// insert one element after another into our tree
@@ -140,12 +142,6 @@ func simplifyTree(root *lookupTreeNode) {
 func findInTree(root *lookupTreeNode, ip *IP.Net) (*LookupElement, []*LookupElement) {
 	// Check for nil root to prevent panic
 	log.Debug("findInTree", root, ip.ToString())
-	if root == nil {
-		return nil, []*LookupElement{}
-	}
-	if root.data == nil || root.data.IPMap == nil {
-		return nil, []*LookupElement{}
-	}
 
 	for _, c := range root.children {
 		// Check for nil child data or IPMap to prevent panic
@@ -163,9 +159,6 @@ func findInTree(root *lookupTreeNode, ip *IP.Net) (*LookupElement, []*LookupElem
 	}
 
 	// no child matched
-	// check if it's our dummy root - this would mean no rule matches the location
-	if root.data.PAC == nil {
-		return nil, []*LookupElement{}
-	}
+	// we return our dummy root as "default"-pac
 	return root.data, []*LookupElement{root.data}
 }

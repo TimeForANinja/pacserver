@@ -70,14 +70,14 @@ func TestFindInTree(t *testing.T) {
 		want *LookupElement
 	}{
 		{
-			name: "Does not Error when only feed with dummy root",
+			name: "Does not Error when only feed with dummy root, but defaults to root-pac",
 			tree: &lookupTreeNode{data: buildInRootElement, children: []*lookupTreeNode{}},
 			ip: &IP.Net{
 				// 192.168.0.0/32
 				NetworkAddress: IP.IP{Value: 3232235520},
 				CIDR:           IP.CIDR{Value: 32, Mask: IP.Mask32},
 			},
-			want: nil,
+			want: buildInRootElement,
 		},
 		{
 			name: "Unknown Element defaults to root",
@@ -244,6 +244,10 @@ func TestBuildLookupTree(t *testing.T) {
 			},
 		},
 	}
+
+	// prepare by defining required global objects
+	rootPAC = &LookupElement{PAC: &pacTemplate{}}
+	confStorage = &Config{}
 
 	// Execute all the test cases
 	for _, testCase := range testCases {

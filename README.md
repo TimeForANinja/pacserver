@@ -87,20 +87,22 @@ Additionally, we can find Interrupts for both forcing a config update and ending
 The application expects a `./config.yml` in the cwd.
 The supported fields for that yaml are:
 
-| Field             | Type    | Default          | Description                                                                         |
-|-------------------|---------|------------------|-------------------------------------------------------------------------------------|
-| ipMapFile         | string  | data/zones.csv   | path to the Zones `.csv` file                                                       |
-| pacRoot           | string  | data/pacs        | path to the directory containing the PAC Files                                      |
-| contactInfo       | string  | "Your Help Desk" | Contact Info that can be used inside the PAC Templates                              |
-| accessLogFile     | string  | "access.log"     | the path to the access log file                                                     |
-| eventLogFile      | string  | "event.log"      | the path to the event log file                                                      |
-| maxCacheAge       | int     | 900 (15 Minutes) | The interval (in seconds) to reload the PAC and Zone files in. Set to <1 to disable |
-| pidFile           | string  | "pacserver.pid"  | A .pid file to track the Process ID. Required for using the --reload feature        |
-| port              | uint16  | 8080             | The Port to listen on                                                               |
-| prometheusEnabled | bool    | false            | Enable Prometheus metrics collection and exposure                                   |
-| prometheusPath    | string  | /metrics         | The endpoint path for exposing Prometheus metrics (default: "/metrics")             |
-| ignoreMinors      | bool    | false            | start the server even when minor problems were found                                |
-| loglevel          | string  | "INFO"           | Choose the Loglevel (Debug, Info, Warn, Error)                                      |
+| Field             | Type   | Default                | Description                                                                         |
+|-------------------|--------|------------------------|-------------------------------------------------------------------------------------|
+| ipMapFile         | string | data/zones.csv         | path to the Zones `.csv` file                                                       |
+| pacRoot           | string | data/pacs              | path to the directory containing the PAC Files                                      |
+| defaultPACFile    | string | ${pacRoot}/default.pac | path to the default PAC file used when no matching PAC is found for an IP           |
+| wpadFile          | string | ${pacRoot}/wpad.dat    | path to the WPAD file served at /wpad.dat endpoint                                  |
+| contactInfo       | string | "Your Help Desk"       | Contact Info that can be used inside the PAC Templates                              |
+| accessLogFile     | string | "access.log"           | the path to the access log file                                                     |
+| eventLogFile      | string | "event.log"            | the path to the event log file                                                      |
+| maxCacheAge       | int    | 900 (15 Minutes)       | The interval (in seconds) to reload the PAC and Zone files in. Set to <1 to disable |
+| pidFile           | string | "pacserver.pid"        | A .pid file to track the Process ID. Required for using the --reload feature        |
+| port              | uint16 | 8080                   | The Port to listen on                                                               |
+| prometheusEnabled | bool   | false                  | Enable Prometheus metrics collection and exposure                                   |
+| prometheusPath    | string | /metrics               | The endpoint path for exposing Prometheus metrics (default: "/metrics")             |
+| ignoreMinors      | bool   | false                  | start the server even when minor problems were found                                |
+| loglevel          | string | "INFO"                 | Choose the Loglevel (Debug, Info, Warn, Error)                                      |
 
 ### Zones
 

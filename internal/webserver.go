@@ -8,7 +8,6 @@ package internal
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -61,9 +60,23 @@ func LaunchServer() {
 
 	trackPac := setupPrometheus(app)
 
+	// Route for serving wpad.dat file
+	app.Get("/wpad.dat", func(c *fiber.Ctx) error {
+		log.Debug("Received for /wpad.dat")
+		return servePAC(
+			c,
+			wpadPAC,
+			make([]*LookupElement, 0),
+			&IP.Net{},
+			"", 0,
+			trackPac,
+		)
+	})
+
 	// Define (testing) route where the IP is passed as a parameter
 	app.Get("/:ip", func(c *fiber.Ctx) error {
 		ip := c.Params("ip")
+		log.Debugf("Received for /:ip with ip=%s", ip)
 
 		// check the ip syntax
 		// if it fails we default to the "/" route
@@ -80,12 +93,13 @@ func LaunchServer() {
 			octets = append(octets, "0")
 		}
 
-		return getFileForIP(c, strings.Join(octets, "."), cidr, trackPac)
+		return serveFromIP(c, strings.Join(octets, "."), cidr, trackPac)
 	})
 
 	// second testing route allowing for ip and cidr
 	app.Get("/:ip/:cidr", func(c *fiber.Ctx) error {
 		ip := c.Params("ip")
+		log.Debugf("Received for /:ip/:cidr with ip=%s and cidr=%s", ip, c.Params("cidr"))
 
 		// (try to) read cidr
 		// if it fails we default to the "/:ip" route
@@ -106,13 +120,14 @@ func LaunchServer() {
 			octets = append(octets, "0")
 		}
 
-		return getFileForIP(c, strings.Join(octets, "."), cidr, trackPac)
+		return serveFromIP(c, strings.Join(octets, "."), cidr, trackPac)
 	})
 
 	// Default route for handling requests with no path
 	// use the requesters source ip
 	app.Get("/", func(c *fiber.Ctx) error {
-		return getFileForIP(c, c.IP(), 32, trackPac)
+		log.Debug("Received for /")
+		return serveFromIP(c, c.IP(), 32, trackPac)
 	})
 
 	// Start the server
@@ -129,24 +144,21 @@ func LaunchServer() {
 }
 
 // getFileForIP is the main function that resolves the PAC file for a given IP
-func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac *LookupElement)) error {
+func serveFromIP(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac *LookupElement)) error {
 	log.Debugf("Received request for IP: %s, Bits: %d", ipStr, networkBits)
-	ipNet, err := IP.NewIPNetFromMixed(ipStr, networkBits)
-	if err != nil {
-		// TODO: fallback to default PAC
-		trackPac(nil)
-		return err
-	}
+	pac, ipNet, stackTrace := findPAC(ipStr, networkBits)
 
-	// search db for best pac
-	pac, stackTrace := findInTree(lookupTree, &ipNet)
+	return servePAC(c, pac, stackTrace, ipNet, ipStr, networkBits, trackPac)
+}
 
-	if pac == nil {
-		// TODO: fallback to default PAC
-		trackPac(nil)
-		return errors.New("no PAC found for this IP")
-	}
-
+func servePAC(
+	c *fiber.Ctx,
+	pac *LookupElement,
+	stackTrace []*LookupElement,
+	ipNet *IP.Net,
+	ipStr string, networkBits int,
+	trackPac func(pac *LookupElement),
+) error {
 	// Track which PAC file was served
 	trackPac(pac)
 
@@ -184,4 +196,17 @@ func getFileForIP(c *fiber.Ctx, ipStr string, networkBits int, trackPac func(pac
 		c.Set("content-type", "application/x-ns-proxy-autoconfig")
 		return c.SendString(pac.getVariant())
 	}
+}
+
+func findPAC(ipStr string, networkBits int) (*LookupElement, *IP.Net, []*LookupElement) {
+	ipNet, err := IP.NewIPNetFromMixed(ipStr, networkBits)
+	if err != nil {
+		// fallback to the root/default node with the default pac
+		return lookupTree.data, &IP.Net{}, make([]*LookupElement, 0)
+	}
+
+	// search db for best pac
+	pac, stackTrace := findInTree(lookupTree, &ipNet)
+
+	return pac, &ipNet, stackTrace
 }

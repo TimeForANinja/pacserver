@@ -34,19 +34,27 @@ func readTemplateFiles(relPacDir string) ([]*pacTemplate, error, int) {
 	problemCounter := 0
 
 	for _, file := range files {
-		fullPath := filepath.Join(absPACPath, file)
-		fileBytes, err := os.ReadFile(fullPath)
+		template, err := readAndParse(absPACPath, file)
 		if err != nil {
-			log.Warnf("Unable to read PAC at \"%s\": %s", fullPath, err.Error())
+			log.Warnf("Unable to read PAC at \"%s\": %s", file, err.Error())
 			problemCounter++
 			continue
 		}
-
-		templates = append(templates, &pacTemplate{
-			Filename: file,
-			content:  string(fileBytes),
-		})
+		templates = append(templates, template)
 	}
 
 	return templates, nil, problemCounter
+}
+
+func readAndParse(basePath, file string) (*pacTemplate, error) {
+	fullPath := filepath.Join(basePath, file)
+	fileBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pacTemplate{
+		Filename: utils.NormalizePath(file),
+		content:  string(fileBytes),
+	}, nil
 }

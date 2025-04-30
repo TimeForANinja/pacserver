@@ -19,6 +19,8 @@ type YAMLConfig struct {
 	// we can, however, use pointers to identify if a value is not set
 	IPMapFile         *string `yaml:"ipMapFile"`
 	PACRoot           *string `yaml:"pacRoot"`
+	DefaultPACFile    *string `yaml:"defaultPACFile"`
+	WPADFile          *string `yaml:"wpadFile"`
 	ContactInfo       *string `yaml:"contactInfo"`
 	AccessLogFile     *string `yaml:"accessLogFile"`
 	EventLogFile      *string `yaml:"eventLogFile"`
@@ -34,6 +36,8 @@ type YAMLConfig struct {
 type Config struct {
 	IPMapFile         string
 	PACRoot           string
+	DefaultPACFile    string
+	WPADFile          string
 	ContactInfo       string
 	AccessLogFile     string
 	EventLogFile      string
@@ -46,7 +50,7 @@ type Config struct {
 	Loglevel          string
 }
 
-var conf *Config
+var confStorage *Config
 
 func LoadConfig(filename string) error {
 	data, err := os.ReadFile(filename)
@@ -70,7 +74,7 @@ func LoadConfig(filename string) error {
 	// assign the new config to the global config
 	// in case we ever start using hot-reload of the config
 	// this will ensure we don't load a broken one
-	conf = newConf
+	confStorage = newConf
 	return nil
 }
 
@@ -83,8 +87,11 @@ func ifIsNil[T comparable](val *T, def T) T {
 
 func overloadDefaults(conf *YAMLConfig) *Config {
 	newConf := &Config{}
+	// Set defaults and map to Config
 	newConf.IPMapFile = ifIsNil(conf.IPMapFile, "data/zones.csv")
 	newConf.PACRoot = ifIsNil(conf.PACRoot, "data/pacs")
+	newConf.DefaultPACFile = ifIsNil(conf.DefaultPACFile, newConf.PACRoot+"\\default.pac")
+	newConf.WPADFile = ifIsNil(conf.WPADFile, newConf.PACRoot+"\\wpad.dat")
 	newConf.ContactInfo = ifIsNil(conf.ContactInfo, "Your Help Desk")
 	newConf.AccessLogFile = ifIsNil(conf.AccessLogFile, "access.log")
 	newConf.EventLogFile = ifIsNil(conf.EventLogFile, "event.log")
@@ -109,11 +116,36 @@ func validateConfig(conf *Config) error {
 	if !slices.Contains(knownLevels, strings.ToUpper(conf.Loglevel)) {
 		return fmt.Errorf("loglevel must be one of %v", knownLevels)
 	}
+
+	// Validate the Zone-File exists
+	zoneInfo, err := os.Stat(conf.IPMapFile)
+	if err != nil || zoneInfo.IsDir() {
+		return fmt.Errorf("Zone-File does not exist or is not a file: %s", conf.IPMapFile)
+	}
+
+	// Validate that PACRoot exists and is a directory
+	pacRootInfo, err := os.Stat(conf.PACRoot)
+	if err != nil || !pacRootInfo.IsDir() {
+		return fmt.Errorf("PACRoot directory does not exist or is not a directory: %s", conf.PACRoot)
+	}
+
+	// Check if DefaultPACFile exists, and if it does, ensure it's a file
+	fileInfo, err := os.Stat(conf.DefaultPACFile)
+	if err != nil || fileInfo.IsDir() {
+		return fmt.Errorf("DefaultPACFile does not exist or is not a file: %s", conf.DefaultPACFile)
+	}
+
+	// Check if WPADFile exists, and if it does, ensure it's a file
+	fileInfo, err = os.Stat(conf.WPADFile)
+	if err != nil || fileInfo.IsDir() {
+		return fmt.Errorf("WPADFile does not exist or is not a file: %s", conf.WPADFile)
+	}
+
 	return nil
 }
 
 func GetConfig() *Config {
-	return conf
+	return confStorage
 }
 
 var accessLog *lumberjack.Logger
@@ -142,7 +174,7 @@ func InitEventLogger() {
 		Compress:   true, // disabled by default
 	}
 	multiLog := io.MultiWriter(os.Stdout, fileLogger)
-	log.SetLevel(conf.getLoglevel())
+	log.SetLevel(confStorage.getLoglevel())
 	log.SetOutput(multiLog)
 	log.Info("Application starting")
 }

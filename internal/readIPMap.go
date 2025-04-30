@@ -7,6 +7,7 @@ package internal
 import (
 	"bufio"
 	"encoding/csv"
+	"github.com/timeforaninja/pacserver/pkg/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +47,7 @@ func readIPMap(relPath string) ([]*ipMap, error, int) {
 	var mappings []*ipMap
 
 	problemCounter := 0
-	lineCount := -1
+	lineCount := 0
 	for scanner.Scan() {
 		// read next line
 		textLine := scanner.Text()
@@ -54,6 +55,11 @@ func readIPMap(relPath string) ([]*ipMap, error, int) {
 
 		// Skip comment-lines
 		if strings.HasPrefix(textLine, "//") || strings.HasPrefix(textLine, "#") {
+			continue
+		}
+
+		// Skip empty lines
+		if len(textLine) == 0 {
 			continue
 		}
 
@@ -88,7 +94,7 @@ func readIPMap(relPath string) ([]*ipMap, error, int) {
 
 		mapping := &ipMap{
 			IPNet:    ipNet,
-			Filename: fields[2],
+			Filename: utils.NormalizePath(fields[2]),
 		}
 
 		// if we made it this far then store the zone

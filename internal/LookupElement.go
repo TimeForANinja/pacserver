@@ -56,7 +56,7 @@ type templateParams struct {
 }
 
 func NewLookupElement(ipMap *ipMap, pac *pacTemplate, contactInfo string) (LookupElement, error) {
-	pacTemplate, err := template.New("pac-template").Parse(pac.content)
+	filledTemplate, err := template.New("pac-template").Parse(pac.content)
 	if err != nil {
 		return LookupElement{}, err
 	}
@@ -64,7 +64,7 @@ func NewLookupElement(ipMap *ipMap, pac *pacTemplate, contactInfo string) (Looku
 	var buf bytes.Buffer
 	data := templateParams{pac.Filename, contactInfo}
 
-	err = pacTemplate.Execute(&buf, data)
+	err = filledTemplate.Execute(&buf, data)
 	if err != nil {
 		return LookupElement{}, err
 	}
