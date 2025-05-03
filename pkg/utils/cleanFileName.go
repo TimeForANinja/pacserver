@@ -7,8 +7,8 @@ import (
 
 // NormalizePath ensures all path separators are platform-specific.
 func NormalizePath(p string) string {
-	// Replace all '\' with '/' for uniform formatting
-	unixFormatted := strings.ReplaceAll(p, "\\", "/")
+	// replace all windows separators with unix, so all seps should be slashes
+	unixSlashes := strings.ReplaceAll(p, "\\", "/")
 	// Use filepath.Clean to normalize the path separators and resolve redundancies
-	return filepath.Clean(filepath.FromSlash(unixFormatted))
+	return filepath.Clean(filepath.FromSlash(unixSlashes))
 }
