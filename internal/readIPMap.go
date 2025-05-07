@@ -20,6 +20,7 @@ import (
 type ipMap struct {
 	IPNet    IP.Net `json:"IPNet"`
 	Filename string `json:"Filename"`
+	Comment  string `json:"Comment"`
 }
 
 func (x1 *ipMap) CompareForSort(x2 *ipMap) bool {
@@ -94,8 +95,8 @@ func parseIPMapLine(line string) (*ipMap, error) {
 	}
 
 	// Ensure the CSV has exactly two fields
-	if len(fields) != 3 {
-		return nil, fmt.Errorf("invalid number of fields, expected 3 buz got %d", len(fields))
+	if len(fields) < 3 || len(fields) > 4 {
+		return nil, fmt.Errorf("invalid number of fields, expected 3-4 but got %d", len(fields))
 	}
 
 	ipNet, err := IP.NewIPNetFromStr(fields[0], fields[1])
@@ -103,8 +104,13 @@ func parseIPMapLine(line string) (*ipMap, error) {
 		return nil, fmt.Errorf("unable to parse IP: %s", err.Error())
 	}
 
-	return &ipMap{
+	newMap := ipMap{
 		IPNet:    ipNet,
 		Filename: utils.NormalizePath(fields[2]),
-	}, nil
+	}
+	// assign Comment if we found one
+	if len(fields) == 4 {
+		newMap.Comment = fields[3]
+	}
+	return &newMap, nil
 }

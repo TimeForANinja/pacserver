@@ -13,9 +13,9 @@ a.b.c.d, 16, my-company.pac
 192.168.0.0, 24, this-pac-does-not-exist.pac
 
 // New zones for USA
-172.16.0.0, 16, countries/usa.pac
-172.16.1.0, 24, countries/usa.pac
-172.16.2.0, 24, countries/usa.pac
+172.16.0.0, 16, countries/usa.pac, all off USA Networks
+172.16.1.0, 24, countries/usa.pac, Client Network
+172.16.2.0, 24, countries/usa.pac, Server Network
 
 // New zones for UK
 172.17.0.0, 16, countries/uk.pac

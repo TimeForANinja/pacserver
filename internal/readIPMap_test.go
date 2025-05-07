@@ -125,14 +125,20 @@ func TestParseIPMapLine(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "Valid line with comment",
+			line:    " 192.168.0.0,24,test.pac,hello world",
+			want:    &ipMap{IPNet: forceIPNet("192.168.0.0", 24), Filename: "test.pac", Comment: "hello world"},
+			wantErr: false,
+		},
+		{
 			name:    "Invalid number of fields (<3)",
 			line:    "192.168.0.0,24",
 			want:    nil,
 			wantErr: true,
 		},
 		{
-			name:    "Invalid number of fields (<3)",
-			line:    "192.168.0.0,24,example.com,a comment",
+			name:    "Invalid number of fields (>4)",
+			line:    "192.168.0.0,24,example.com,a comment,another comment",
 			want:    nil,
 			wantErr: true,
 		},

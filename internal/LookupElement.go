@@ -39,10 +39,15 @@ func (le1 LookupElement) getRawCIDR() uint8 {
 }
 
 func (le1 LookupElement) _stringify() string {
+	comment := ""
+	if le1.IPMap.Comment != "" {
+		comment = fmt.Sprintf(" // %s", le1.IPMap.Comment)
+	}
 	return fmt.Sprintf(
-		"%s | pac(%s)",
+		"%s | pac(%s)%s",
 		le1.IPMap.IPNet.ToString(),
 		le1.IPMap.Filename,
+		comment,
 	)
 }
 
