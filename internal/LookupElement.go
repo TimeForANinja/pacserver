@@ -8,7 +8,7 @@ package internal
 import (
 	"bytes"
 	"fmt"
-	"html/template"
+	"text/template"
 )
 
 type LookupElement struct {

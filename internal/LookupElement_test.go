@@ -305,11 +305,12 @@ func TestNewLookupElement(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		ipMap       *ipMap
-		pac         *pacTemplate
-		contactInfo string
-		wantErr     bool
+		name            string
+		ipMap           *ipMap
+		pac             *pacTemplate
+		expectedVariant string
+		contactInfo     string
+		wantErr         bool
 	}{
 		{
 			name: "Valid template",
@@ -321,8 +322,23 @@ func TestNewLookupElement(t *testing.T) {
 				Filename: "test.pac",
 				content:  "// This is a test PAC file for {{ .Filename }} by {{ .Contact }}",
 			},
-			contactInfo: "Test Contact",
-			wantErr:     false,
+			expectedVariant: "// This is a test PAC file for test.pac by Test Contact",
+			contactInfo:     "Test Contact",
+			wantErr:         false,
+		},
+		{
+			name: "Template with special characters",
+			ipMap: &ipMap{
+				IPNet:    forceIPNet("192.168.0.0", 24),
+				Filename: "test.pac",
+			},
+			pac: &pacTemplate{
+				Filename: "test.pac",
+				content:  "// This is a test PAC file with special characters: < > & \" ' for {{ .Filename }} by {{ .Contact }}",
+			},
+			expectedVariant: "// This is a test PAC file with special characters: < > & \" ' for test.pac by Test Contact",
+			contactInfo:     "Test Contact",
+			wantErr:         false,
 		},
 		{
 			name: "Invalid template",
@@ -334,8 +350,9 @@ func TestNewLookupElement(t *testing.T) {
 				Filename: "test.pac",
 				content:  "// This is a test PAC file with {{ .InvalidVariable }}",
 			},
-			contactInfo: "Test Contact",
-			wantErr:     true,
+			expectedVariant: "",
+			contactInfo:     "Test Contact",
+			wantErr:         true,
 		},
 	}
 
@@ -357,9 +374,8 @@ func TestNewLookupElement(t *testing.T) {
 				}
 
 				// Verify the template was filled correctly
-				expectedVariant := "// This is a test PAC file for test.pac by Test Contact"
-				if le.Variant != expectedVariant {
-					t.Errorf("NewLookupElement() Variant = %v, want %v", le.Variant, expectedVariant)
+				if !tt.wantErr && le.Variant != tt.expectedVariant {
+					t.Errorf("NewLookupElement() Variant = %v, want %v", le.Variant, tt.expectedVariant)
 				}
 			}
 		})
