@@ -11,8 +11,12 @@ from internal.Config import (
     load_config,
     init_event_logger,
 )
+from internal.metrics import init_metrics
 
 def add_routes(app: Flask) -> None:
+    # Attach metrics (hooks and /metrics endpoint)
+    init_metrics(app)
+
     @app.get("/<path:ip>")
     def ip_route(ip: str):
         # check the ip syntax

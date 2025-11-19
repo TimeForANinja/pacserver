@@ -13,6 +13,13 @@ WORKERS="${APP_WORKERS:-1}"
 THREADS="${APP_THREADS:-2}"
 BACKLOG="${APP_BACKLOG:-2048}"
 
+# Prometheus multiprocess setup
+export PROMETHEUS_MULTIPROC_DIR="${PROMETHEUS_MULTIPROC_DIR:-/tmp/prometheus}"
+mkdir -p "${PROMETHEUS_MULTIPROC_DIR}"
+# Clean up old metrics files before starting workers
+find "${PROMETHEUS_MULTIPROC_DIR}" -type f -name '*.db' -delete 2>/dev/null || true
+find "${PROMETHEUS_MULTIPROC_DIR}" -type f -name '*.pid' -delete 2>/dev/null || true
+
 printf "Starting gunicorn with\n - Bind: %s:%s\n - Workers: %s\n - Threads: %s\n - Backlog: %s\n\n" "${HOST}" "${PORT}" "${WORKERS}" "${THREADS}" "${BACKLOG}"
 
 exec gunicorn \
@@ -20,4 +27,5 @@ exec gunicorn \
   --bind "${HOST}:${PORT}" \
   --threads "${THREADS}" \
   --backlog "${BACKLOG}" \
+  --config gunicorn_conf.py \
   "internal.webserver:create_app()" \

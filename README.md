@@ -60,3 +60,20 @@ function FindProxyForURL(url, host) {
     return "PROXY " + proxy
 }
 ```
+
+## Metrics
+
+This service exposes Prometheus metrics at `/metrics`.
+
+- HTTP metrics (per request):
+  - `http_requests_total{method,endpoint,status}`
+  - `http_request_duration_seconds_bucket|sum|count{method,endpoint,status}`
+
+- TCP connection state metrics (system-wide):
+  - `tcp_connection_states{state, family}` — counts current TCP sockets grouped by state and IP family.
+    - Examples of `state`: `ESTABLISHED`, `LISTEN`, `TIME_WAIT`, `CLOSE_WAIT`, etc.
+    - `family`: `ipv4` or `ipv6`.
+
+Notes:
+- In multi-process (Gunicorn) mode, metrics are aggregated using Prometheus's multiprocess mode. The start script sets `PROMETHEUS_MULTIPROC_DIR` and cleans stale files automatically.
+- TCP state metrics read from `/proc/net/tcp` and `/proc/net/tcp6`. On non-Linux systems or if `/proc` is unavailable, the metric yields no samples.
