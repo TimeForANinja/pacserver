@@ -8,7 +8,7 @@ from pkg.IP.ipnet import Net
 from internal.LookupTree import find_in_tree
 from internal.Caches import get_lookup_tree, init_caches
 from internal.Config import (
-    load_config,
+    load_config_from_env,
     init_event_logger,
 )
 from internal.metrics import init_metrics
@@ -71,7 +71,7 @@ def handle_reload_signal(signum, frame):
 
 def create_app() -> Flask:
     # Load configuration and set up event logger
-    load_config("config.yml")
+    load_config_from_env()
     init_event_logger()
     init_caches()
 

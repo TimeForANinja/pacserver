@@ -1,7 +1,7 @@
 import sys
+import os
 from typing import Optional
 
-import yaml
 from logging.handlers import RotatingFileHandler
 import logging
 
@@ -19,23 +19,55 @@ conf: Optional[Config] = None
 event_log: Optional[logging.Logger] = None
 access_log: Optional[logging.Logger] = None
 
-def load_config(filename: str) -> None:
-    global conf
+def _parse_bool(value: str, default: bool = False) -> bool:
+    if value is None:
+        return default
+    v = value.strip().lower()
+    if v in ("1", "true", "yes", "y", "on"):  # common truthy values
+        return True
+    if v in ("0", "false", "no", "n", "off"):
+        return False
+    return default
+
+
+def _parse_int(value: str, default: int = 0) -> int:
+    if value is None:
+        return default
     try:
-        with open(filename, 'r') as f:
-            data = yaml.safe_load(f)
-            new_conf = Config()
-            new_conf.max_cache_age = data.get('maxCacheAge', 0)
-            new_conf.ip_map_file = data.get('ipMapFile', '')
-            new_conf.pac_root = data.get('pacRoot', '')
-            new_conf.contact_info = data.get('contactInfo', '')
-            new_conf.access_log_file = data.get('accessLogFile', '')
-            new_conf.event_log_file = data.get('eventLogFile', '')
-            new_conf.do_auto_refresh = data.get('doAutoRefresh', False)
-            conf = new_conf
-            return
-    except Exception as e:
-        raise e
+        return int(value)
+    except Exception:
+        return default
+
+
+def load_config_from_env() -> None:
+    """
+    Load application configuration from environment variables.
+
+    All variables are prefixed with APP_. Supported variables:
+      - APP_IP_MAP_FILE
+      - APP_PAC_ROOT
+      - APP_CONTACT_INFO
+      - APP_ACCESS_LOG_FILE
+      - APP_EVENT_LOG_FILE
+      - APP_DO_AUTO_REFRESH (bool)
+      - APP_MAX_CACHE_AGE (int seconds)
+    """
+    global conf
+
+    new_conf = Config()
+
+    # Strings
+    new_conf.ip_map_file = os.environ.get("APP_IP_MAP_FILE", os.path.join("demo_files", "zones.csv"))
+    new_conf.pac_root = os.environ.get("APP_PAC_ROOT", os.path.join("demo_files", "pacs"))
+    new_conf.contact_info = os.environ.get("APP_CONTACT_INFO", "")
+    new_conf.access_log_file = os.environ.get("APP_ACCESS_LOG_FILE", "./access.log")
+    new_conf.event_log_file = os.environ.get("APP_EVENT_LOG_FILE", "./events.log")
+
+    # Bools/Ints
+    new_conf.do_auto_refresh = _parse_bool(os.environ.get("APP_DO_AUTO_REFRESH"), False)
+    new_conf.max_cache_age = _parse_int(os.environ.get("APP_MAX_CACHE_AGE"), 0)
+
+    conf = new_conf
 
 def get_config() -> Config:
     global conf

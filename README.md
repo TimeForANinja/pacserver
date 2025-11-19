@@ -6,18 +6,34 @@ The setup of this App is pretty straight forward.
 After downloading the executable, you only require the following three parameters:
 
 ### Config
-The application expects a `./config.yml` in the cwd.
-The supported fields for that YAML are:
+Configuration is now provided via environment variables. All variables are prefixed with `APP_`.
 
-| Field         | Type   | Description                                                     |
-|---------------|--------|-----------------------------------------------------------------|
-| ipMapFile     | string | path to the Zones `.csv` file                                   |
-| pacRoot       | string | path to the directory containing the PAC Files                  |
-| contactInfo   | string | Contact Info that can be used inside the PAC Templates          |
-| accessLogFile | string | the path to the access log file                                 |
-| eventLogFile  | string | the path to the event log file                                  |
-| doAutoRefresh | bool   | Yes to Automatically reload PAC and Zones in a regular interval |
-| maxCacheAge   | int    | The interval (in seconds) to reload the PAC and Zone files in   |
+Supported variables and defaults:
+
+| Variable               | Type  | Default                 | Description                                                     |
+|------------------------|-------|-------------------------|-----------------------------------------------------------------|
+| `APP_IP_MAP_FILE`      | str   | `demo_files/zones.csv`  | Path to the Zones `.csv` file                                   |
+| `APP_PAC_ROOT`         | str   | `demo_files/pacs`       | Path to the directory containing the PAC files                   |
+| `APP_CONTACT_INFO`     | str   | ``                      | Contact info for use inside PAC templates                        |
+| `APP_ACCESS_LOG_FILE`  | str   | `./access.log`          | Path to the access log file                                      |
+| `APP_EVENT_LOG_FILE`   | str   | `./events.log`          | Path to the event log file                                       |
+| `APP_DO_AUTO_REFRESH`  | bool  | `false`                 | Automatically refresh PAC and Zones on an interval               |
+| `APP_MAX_CACHE_AGE`    | int   | `0`                     | Interval in seconds for refresh when auto-refresh is enabled     |
+
+Example:
+
+```bash
+docker run \
+  -p 8080:8080 \
+  -e APP_IP_MAP_FILE=/data/zones.csv \
+  -e APP_PAC_ROOT=/data/pacs \
+  -e APP_CONTACT_INFO="NOC Germany" \
+  -e APP_DO_AUTO_REFRESH=true \
+  -e APP_MAX_CACHE_AGE=3600 \
+  pacserver
+```
+
+Migration note: previous versions used a `config.yml`. That file is no longer read. Please set the corresponding `APP_` environment variables instead.
 
 ### Zones
 Zones map IP Networks to PAC Files
@@ -37,7 +53,7 @@ The known variables are:
 | Variable | Description                                          |
 |----------|------------------------------------------------------|
 | Filename | The (relative) Filename of th file being server      |
-| Contact  | Generic Contact Information provided in `config.yml` |
+| Contact  | Generic Contact Information provided via env         |
 
 To use them, you can use the following Syntax `{{ .<var name> }}`
 
