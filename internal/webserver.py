@@ -1,23 +1,89 @@
-import os
-from fastapi import FastAPI, Request, Response
-from hypercorn.config import Config
-from hypercorn.asyncio import serve
 import json
+import os
+import signal
+from flask import Flask, request, Response
 
 from pkg.IP import validPartialIP
 from pkg.IP.ipnet import Net
 from internal.LookupTree import find_in_tree
-from internal.Caches import get_lookup_tree
-from internal.Config import get_access_logger, get_event_log
+from internal.Caches import get_lookup_tree, init_caches
+from internal.Config import (
+    load_config,
+    init_event_logger,
+)
 
-app = FastAPI()
+def add_routes(app: Flask) -> None:
+    @app.get("/<path:ip>")
+    def ip_route(ip: str):
+        # check the ip syntax
+        # if it fails, we default to the / route
+        if not validPartialIP.is_valid_partial_ip(ip):
+            return root_route()
 
-async def get_file_for_ip(request: Request, ip_str: str, network_bits: int) -> Response:
+        # Split the IP into octets
+        octets = ip.split('.')
+        cidr = len(octets) * 8
+
+        # Pad the IP to always be 4 octets
+        while len(octets) < 4:
+            octets.append("0")
+
+        return get_file_for_ip(".".join(octets), cidr)
+
+    @app.get("/<path:ip>/<cidr>")
+    def ip_cidr_route(ip: str, cidr: str):
+        try:
+            cidr_int = int(cidr)
+        except ValueError:
+            return ip_route(ip)
+
+        # check the ip syntax
+        # if it fails, we default to the /:ip and then the / route
+        if not validPartialIP.is_valid_partial_ip(ip):
+            return ip_route(ip)
+
+        # Pad the IP to always be 4 octets
+        octets = ip.split('.')
+        while len(octets) < 4:
+            octets.append("0")
+
+        return get_file_for_ip(".".join(octets), cidr_int)
+
+    @app.get("/")
+    def root_route():
+        # Prefer X-Forwarded-For if provided by reverse proxy; otherwise use remote_addr
+        forwarded_for = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        client_ip = forwarded_for or (request.remote_addr or "0.0.0.0")
+        return get_file_for_ip(client_ip, 32)
+
+    @app.post("/admin/reload")
+    def reload_all():
+        os.kill(os.getppid(), signal.SIGUSR1)
+        return Response("success", status=200)
+
+def handle_reload_signal(signum, frame):
+    print("Worker reloaded data via signal:", signum)
+    init_caches()
+
+def create_app() -> Flask:
+    # Load configuration and set up event logger
+    load_config("config.yml")
+    init_event_logger()
+    init_caches()
+
+    # Register for SIGUSR1 in each worker
+    signal.signal(signal.SIGUSR1, handle_reload_signal)
+
+    app = Flask(__name__)
+    add_routes(app)
+    return app
+
+def get_file_for_ip(ip_str: str, network_bits: int) -> Response:
     try:
         ip_net = Net.new_from_mixed(ip_str, network_bits)
     except Exception as e:
         # TODO: fallback to default PAC
-        return Response(str(e), status_code=400)
+        return Response(str(e), status=400)
 
     # search db for best pac
     pac = find_in_tree(get_lookup_tree(), ip_net)
@@ -26,11 +92,11 @@ async def get_file_for_ip(request: Request, ip_str: str, network_bits: int) -> R
     if pac is None:
         pac = {"ip_map": {}}
 
-    debug = request.query_params.get("debug")
+    debug = request.args.get("debug")
     if debug is None:
         return Response(
             pac.get_variant(),
-            media_type="application/x-ns-proxy-autoconfig"
+            mimetype="application/x-ns-proxy-autoconfig"
         )
 
     json_data = {
@@ -44,58 +110,5 @@ async def get_file_for_ip(request: Request, ip_str: str, network_bits: int) -> R
 
     return Response(
         f"{json.dumps(json_data, indent=4)}\n\n---------------------------------------\n\n{pac.get_variant()}",
-        media_type="text/plain"
+        mimetype="text/plain"
     )
-
-@app.get("/{ip}")
-async def ip_route(request: Request, ip: str):
-    # check the ip syntax
-    # if it fails, we default to the / route
-    if not validPartialIP.is_valid_partial_ip(ip):
-        return await root_route(request)
-
-    # Split the IP into octets
-    octets = ip.split('.')
-    cidr = len(octets) * 8
-
-    # Pad the IP to always be 4 octets
-    while len(octets) < 4:
-        octets.append("0")
-
-    return await get_file_for_ip(request, ".".join(octets), cidr)
-
-@app.get("/{ip}/{cidr}")
-async def ip_cidr_route(request: Request, ip: str, cidr: str):
-    try:
-        cidr_int = int(cidr)
-    except ValueError:
-        return await ip_route(request, ip)
-
-    # check the ip syntax
-    # if it fails, we default to the /:ip and then the / route
-    if not validPartialIP.is_valid_partial_ip(ip):
-        return await ip_route(request, ip)
-
-    # Pad the IP to always be 4 octets
-    octets = ip.split('.')
-    while len(octets) < 4:
-        octets.append("0")
-
-    return await get_file_for_ip(request, ".".join(octets), cidr_int)
-
-@app.get("/")
-async def root_route(request: Request):
-    client_ip = request.client.host
-    return await get_file_for_ip(request, client_ip, 32)
-
-async def launch_server():
-    global app
-
-    server_conf = Config()
-    server_conf.accesslog = get_access_logger()
-    server_conf.errorlog = get_event_log()
-    server_conf.bind = ["0.0.0.0:8080"]
-    server_conf.workers = os.cpu_count()
-    server_conf.backlog = 400
-
-    await serve(app, server_conf)
