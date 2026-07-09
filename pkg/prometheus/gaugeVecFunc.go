@@ -14,6 +14,7 @@ type GaugeVecFunc struct {
 	callback func() map[string]float64
 }
 
+// NewGaugeVecFunc creates a gauge collector backed by a callback.
 func NewGaugeVecFunc(
 	opts prometheus.GaugeOpts,
 	labelNames []string,
@@ -31,13 +32,19 @@ func NewGaugeVecFunc(
 	}
 }
 
-// Describe sends the super-set of all possible descriptors of metrics
+// Describe sends the super-set of all possible descriptors of metrics.
 func (c *GaugeVecFunc) Describe(ch chan<- *prometheus.Desc) {
+	if c == nil || c.metric == nil {
+		return
+	}
 	ch <- c.metric
 }
 
-// Collect is called by the Prometheus registry when collecting metrics
+// Collect is called by the Prometheus registry when collecting metrics.
 func (c *GaugeVecFunc) Collect(ch chan<- prometheus.Metric) {
+	if c == nil || c.metric == nil || c.callback == nil {
+		return
+	}
 	values := c.callback()
 	for label, value := range values {
 		ch <- prometheus.MustNewConstMetric(c.metric, prometheus.GaugeValue, value, label)

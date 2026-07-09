@@ -30,6 +30,7 @@ func cidrToNetmask(cidr int) uint32 {
 	return ^uint32(0) << (32 - cidr)
 }
 
+// NewCIDR converts a numeric prefix length into a CIDR value and mask.
 func NewCIDR(cidrInt int) (CIDR, error) {
 	if !isValidCIDR(cidrInt) {
 		return CIDR{}, ErrCIDROutOfRange
@@ -40,6 +41,7 @@ func NewCIDR(cidrInt int) (CIDR, error) {
 	}, nil
 }
 
+// NewCIDRFromString parses a CIDR prefix length from text.
 func NewCIDRFromString(cidrStr string) (CIDR, error) {
 	// (try to) read cidr
 	cidrInt, err := strconv.Atoi(cidrStr)

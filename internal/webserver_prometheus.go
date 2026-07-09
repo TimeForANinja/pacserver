@@ -96,6 +96,10 @@ var (
 )
 
 func setupPrometheus(app *fiber.App) func(pac *storage.LookupEntry) {
+	if app == nil || GetConfig() == nil {
+		return func(pac *storage.LookupEntry) {}
+	}
+
 	// Return a no-op tracker when metrics are disabled so callers do not need branching.
 	if !GetConfig().PrometheusEnabled {
 		return func(pac *storage.LookupEntry) {}

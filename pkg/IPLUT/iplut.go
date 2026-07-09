@@ -135,6 +135,10 @@ func StringifyStack[T Payload](stack []T) string {
 
 // Insert places a node into the correct place in the tree.
 func Insert[T Payload](root *Node[T], elem *Node[T]) {
+	if root == nil || elem == nil {
+		return
+	}
+
 	// Copy the node so the caller can keep its original instance untouched.
 	newNode := &Node[T]{
 		Net:      elem.Net,

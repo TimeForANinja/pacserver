@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// GetLoglevel converts a configured string into a Fiber logger level.
 func GetLoglevel(level string) log.Level {
 	switch strings.ToUpper(level) {
 	case "DEBUG":
@@ -21,6 +22,7 @@ func GetLoglevel(level string) log.Level {
 	return log.LevelInfo
 }
 
+// ValidateLogLevel checks whether the supplied log level is supported.
 func ValidateLogLevel(level string) error {
 	knownLevels := []string{"DEBUG", "INFO", "WARN", "ERROR"}
 	if !slices.Contains(knownLevels, strings.ToUpper(level)) {

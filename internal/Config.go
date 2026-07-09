@@ -30,6 +30,7 @@ type Config struct {
 
 var confStorage *Config
 
+// LoadConfig reads, validates, and stores the active application configuration.
 func LoadConfig(filename string) error {
 	// Load into a temporary config first so validation can reject bad input before it goes live.
 	newConf, err := loadConfigWithViper(filename)
@@ -87,6 +88,10 @@ func loadConfigWithViper(filename string) (*Config, error) {
 }
 
 func validateConfig(conf *Config) error {
+	if conf == nil {
+		return fmt.Errorf("config must not be nil")
+	}
+
 	// Keep the contact info printable because it is injected into generated PAC content.
 	contactRegex := regexp.MustCompile(`^[\w\s\-.,@() ]+$`)
 	if !contactRegex.MatchString(conf.ContactInfo) {
@@ -129,12 +134,17 @@ func validateConfig(conf *Config) error {
 	return nil
 }
 
+// GetConfig returns the currently loaded configuration.
 func GetConfig() *Config {
 	return confStorage
 }
 
 // ToStorageConfig converts the app config into the subset required by storage.
 func (conf *Config) ToStorageConfig() storage.StorageConfig {
+	if conf == nil {
+		return storage.StorageConfig{}
+	}
+
 	return storage.StorageConfig{
 		IPMapFile:      conf.IPMapFile,
 		PACRoot:        conf.PACRoot,

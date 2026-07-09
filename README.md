@@ -1,303 +1,145 @@
 # PAC-Server
 
-This is a custom server made to serve Proxy Auto Config (short PAC) Files based on Source IP. It allows organizations to automatically provide the correct proxy configuration to clients based on their network location.
+PAC-Server serves Proxy Auto Config files based on the client's source IP. It maps IP networks to PAC templates, supports template variables inside PAC files, and exposes request and event logging for operations work.
 
-## What is PAC-Server?
+## What It Does
 
-PAC-Server is a specialized web server that:
-- Serves different Proxy Auto-Configuration (PAC) files based on the client's source IP address
-- Maps IP networks to specific PAC files using a configurable zone mapping
-- Supports templating in PAC files for dynamic content
-- Includes built-in Prometheus metrics for monitoring
-- Provides tools for testing and reloading configurations without server restarts
+- Serves different PAC files by client network
+- Resolves requests through a zone-to-template lookup tree
+- Renders PAC templates with `Filename` and `Contact`
+- Exposes Prometheus metrics when enabled
+- Supports reload without restarting the server
+- Logs every request to the access log and errors or panics to the event log
 
-## Getting Started
+## Runtime Modes
 
-### Installation
+The binary supports three flags:
 
-1. Download the latest executable from the [releases page](https://github.com/timeforaninja/pacserver/releases)
-2. Create a `config.yml` file in the same directory (see [Configuration](#config) section)
-3. Prepare your PAC files and zone mappings (see [PACs](#pacs) and [Zones](#zones) sections)
-
-### Running the Application
-
-The app supports 3 modes:
-
-* **serve**: Start the PAC server to serve PAC files based on source IP
-  ```
-  pacserver --serve
-  ```
-
-* **reload**: Tell a running server to reload PACs and configuration without restarting
-  ```
-  pacserver --reload
-  ```
-
-* **test**: Validate configurations and PAC files without starting the server
-  ```
-  pacserver --test
-  ```
-
-### Getting PAC Files from the Application
-
-To receive PAC Files you simply send GET-Requests to the Application.
-
-It supports three Routes
-
-* `/` The Default Route will provide you with a PAC based on your Source IP
-* `/:ip` This route will try to provide you the PAC for the requested IP (/32)
-* `/:ip/:cidr` With this route we can also choose a specific CIDR in additional to the IP
-
-With every route you can set the `debug` flag to get additional Information.
-```
-GET /10.0.3.2?debug
+```bash
+pacserver --serve
+pacserver --test
+pacserver --reload
 ```
 
+`--serve` starts the HTTP server. `--test` loads the config, zones, and PAC files, then exits after validation. `--reload` sends a reload request to a running server using the configured admin secret.
 
-## Application Flow
+## Request Routes
 
-![Flow Diagram](docs/flow.drawio.png)
+- `/wpad.dat` serves the configured WPAD file directly
+- `/*` resolves the best PAC for the request source IP
+- `/:ip` resolves a specific IPv4 address as `/32`
+- `/:ip/:cidr` resolves a specific IPv4 network prefix
 
-### Flow Chart Description
+Append `?debug=1` to any PAC route to return the matched request, lookup path, and PAC body in a debug response.
 
-The flow chart illustrates the following process:
+## Admin Routes
 
-* On the left is a "load config subroutine" that:
-  * Loads IPMap and PACs in parallel
-  * Builds an Array of LookupElements
-  * Converts the Array to a Lookup Tree
-  * Returns the amount of minor problems found
+- `GET /admin` renders the admin UI or a login prompt
+- `POST /admin/login` stores the admin secret in a cookie
+- `POST /admin/reload` triggers a live reload
 
-The main flow consists of:
-* Start
-* Call the Load config subroutine
-* Check if there are minor problems:
-  * If no minor problems, start threads
-  * If minor problems exist but are set to be ignored, start threads
-* Start the Main Server Processes
+The admin endpoints require the configured `adminSecret`.
 
-The Main process consists of two routines:
-* Serve requests, which loops until an interrupt is received
-* Update routine, which calls the load config subroutine on a regular interval if configured
+## Configuration
 
-Additionally, we can find Interrupts for both forcing a config update and ending the Server Loop.
+The application expects `config.yml` in the current working directory.
 
-### Config
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ipMapFile` | string | `data/zones.csv` | CSV file mapping IP networks to PAC files |
+| `pacRoot` | string | `data/pacs` | Directory containing PAC templates |
+| `defaultPACFile` | string | `${pacRoot}/default.pac` | PAC served when no zone matches |
+| `wpadFile` | string | `${pacRoot}/wpad.dat` | File served at `/wpad.dat` |
+| `contactInfo` | string | `Your Help Desk` | Contact text injected into PAC templates |
+| `accessLogFile` | string | `access.log` | Request access log file |
+| `eventLogFile` | string | `event.log` | Application event log file |
+| `port` | uint16 | `8080` | HTTP listen port |
+| `adminSecret` | string | empty | Shared secret for admin and reload endpoints |
+| `prometheusEnabled` | bool | `false` | Enable Prometheus metrics |
+| `prometheusPath` | string | `/metrics` | Metrics endpoint path |
+| `ignoreMinors` | bool | `false` | Continue startup when only minor load issues were found |
+| `loglevel` | string | `INFO` | Event-log level: `DEBUG`, `INFO`, `WARN`, or `ERROR` |
 
-The application expects a `./config.yml` in the cwd.
-The supported fields for that yaml are:
+## Zones CSV
 
-| Field             | Type   | Default                | Description                                                                         |
-|-------------------|--------|------------------------|-------------------------------------------------------------------------------------|
-| ipMapFile         | string | data/zones.csv         | path to the Zones `.csv` file                                                       |
-| pacRoot           | string | data/pacs              | path to the directory containing the PAC Files                                      |
-| defaultPACFile    | string | ${pacRoot}/default.pac | path to the default PAC file used when no matching PAC is found for an IP           |
-| wpadFile          | string | ${pacRoot}/wpad.dat    | path to the WPAD file served at /wpad.dat endpoint                                  |
-| contactInfo       | string | "Your Help Desk"       | Contact Info that can be used inside the PAC Templates                              |
-| accessLogFile     | string | "access.log"           | the path to the access log file                                                     |
-| eventLogFile      | string | "event.log"            | the path to the event log file                                                      |
-| maxCacheAge       | int    | 900 (15 Minutes)       | The interval (in seconds) to reload the PAC and Zone files in. Set to <1 to disable |
-| pidFile           | string | "pacserver.pid"        | A .pid file to track the Process ID. Required for using the --reload feature        |
-| port              | uint16 | 8080                   | The Port to listen on                                                               |
-| prometheusEnabled | bool   | false                  | Enable Prometheus metrics collection and exposure                                   |
-| prometheusPath    | string | /metrics               | The endpoint path for exposing Prometheus metrics (default: "/metrics")             |
-| ignoreMinors      | bool   | false                  | start the server even when minor problems were found                                |
-| loglevel          | string | "INFO"                 | Choose the Loglevel (Debug, Info, Warn, Error)                                      |
+The zones file is a CSV with no header. Blank lines and lines starting with `//` or `#` are ignored.
 
-### Zones
+| Column | Type | Description |
+| --- | --- | --- |
+| `0` | ip | Network address |
+| `1` | int | CIDR prefix length |
+| `2` | file | PAC file path relative to `pacRoot` |
+| `3` | text | Optional comment |
 
-Zones map IP Networks to PAC Files
-The program expects a CSV, each row is one rule and it supports the following columns.
-The Zones file should not have a header, but does support both `//` and `#` for comments.
+Example:
 
-| Column ID | type | Description                                            |
-|-----------|------|--------------------------------------------------------|
-| 0         | ip   | The Network Address of this rule                       |
-| 1         | int  | The (CIDR) Network Size                                |
-| 2         | file | The path to the PAC file to use, relative to `pacRoot` |
-
-Example rows:
-```
-// IP, CIDR, PAC (header must be escaped as a comment)
+```csv
 192.168.1.0,24,default.pac
 10.0.0.0,8,internal.pac
 172.16.0.0,16,vpn.pac
 ```
 
-See `demo_files/zones.csv` for a more complex example.
+## PAC Templates
 
-### PACs
+PAC templates are rendered with the following variables:
 
-Lastly you need to provide the PAC Files themselves.
-The application allows for the Use of some Template variables.
-The known variables are:
+| Variable | Meaning |
+| --- | --- |
+| `Filename` | Relative PAC filename |
+| `Contact` | Contact text from `config.yml` |
 
-| Variable | Description                                          |
-|----------|------------------------------------------------------|
-| Filename | The (relative) Filename of th file being server      |
-| Contact  | Generic Contact Information provided in `config.yml` |
-
-To use them, you can use the following Syntax `{{ .<var name> }}`
-
-Below you can find an example:
+Example:
 
 ```js
-// Welcome
-// This is the {{ .Filename }} PACfile
-// For Changes please reach out to {{ .Contact }}
-
-var proxy = "proxy01:8080"
+// This is the {{ .Filename }} PAC file
+// For changes please reach out to {{ .Contact }}
 
 function FindProxyForURL(url, host) {
-    if (host === "localhost"
-        || isInNet(host, "127.0.0.0", "255.0.0.0")
-    ) {
-        return "DIRECT"
-    }
-
-    return "PROXY " + proxy
+    return "DIRECT";
 }
 ```
 
-## Prometheus Metrics
+## Logging And Diagnostics
 
-The PAC-Server includes built-in support for Prometheus metrics to monitor performance. When enabled, the server exposes
-various metrics that can be scraped by Prometheus and visualized in Grafana.
+- Every request is written to the access log.
+- Application logs go to stdout and the event log when serving.
+- Unexpected panics are recovered and logged with a stack trace.
+- Request handler errors and admin reload client failures are logged with contextual stack traces.
 
-### Enabling Prometheus Metrics
+## Flow
 
-To enable Prometheus metrics, set the following in your `config.yml`:
+The current startup flow is:
 
-```yaml
-prometheusEnabled: true
-prometheusPath: "/metrics"  # The endpoint where metrics will be exposed
+1. Load and validate `config.yml`
+2. Load zones and PAC templates into the lookup cache
+3. Start the HTTP server for `--serve`
+4. Trigger a live reload for `--reload`
+5. Exit after validation for `--test`
+
+The flow diagram in `docs/flow.drawio` tracks the same control flow.
+
+## Building
+
+```bash
+go build -o pacserver ./cmd/pacserver.go
 ```
 
-### Available Metrics
+## Testing
 
-The following metrics are available:
-
-#### Request/Response Metrics
-
-- Metrics provided by the `fiberprometheus`-Module
-  - **Request Rate and Duration**:
-      - `http_requests_total` - Total number of HTTP requests (provided by Fiber Prometheus middleware)
-      - `http_request_duration_seconds` - HTTP request latency in seconds (provided by Fiber Prometheus middleware)
-
-- **Response Time**:
-    - `app_response_time_hist_seconds` - Response time distribution in seconds (histogram)
-    - `app_response_time_summary_seconds` - Response time distribution in seconds (summary with percentiles)
-
-- **Data I/O**:
-    - `app_bytes_in` - Total bytes received
-    - `app_bytes_out` - Total bytes sent
-
-- **HTTP Status Codes**:
-    - `app_http_errors_total` - Total number of HTTP responses by status code
-
-- **PAC File Usage**:
-    - `app_pac_file` - Number of times each PAC file has been served
-
-#### System Metrics
-
-- **Socket States**:
-    - `app_socket_states` - Number of active sockets by state (ESTABLISHED, TIME_WAIT, etc.)
-
-- **Go Runtime Metrics**:
-    - Various Go runtime metrics are automatically included by the Fiber Prometheus middleware, including:
-      - Memory usage
-      - Garbage collection statistics
-      - Number of active goroutines
-      - CPU usage
-
-
-## Development
-
-This section provides information for developers who want to contribute to or modify the PAC-Server.
-
-### Building from Source
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/timeforaninja/pacserver.git
-   cd pacserver
-   ```
-
-2. Build the application:
-   ```
-   go build -o pacserver ./cmd/pacserver.go
-   ```
-
-### Project Structure
-
-```
-pacserver/
-├── cmd/                       # Command-line application entry point
-│   └── pacserver.go           # Main application file that handles cli flags and inits the server
-├── internal/                  # Internal application code
-│   ├── Config.go              # Configuration handling
-│   ├── LookupElement.go       # IP lookup data struct (Single Element)
-│   ├── LookupElementTree.go   # IP lookup data struct (Collection)
-│   ├── prometheus.go          # Prometheus metrics implementation
-│   ├── readIPMap.go           # Zone file parsing
-│   ├── readPACTemplates.go    # PAC template loading and parsing
-│   ├── storage.go             # Data storage and caching
-│   └── webserver.go           # HTTP server implementation
-├── pkg/                       # Reusable packages
-│   ├── IP/                    # IP address handling utilities
-│   └── utils/                 # General utilities
-├── docs/                      # Documentation files
-└── demo_files/                # Example configuration files
-    ├── pacs/                  # Example PAC files
-    └── zones.csv              # Example zone mapping
-```
-
-### Testing
-
-Run the tests with:
-```
+```bash
 go test ./...
 ```
 
-For more verbose output:
-```
-go test -v ./...
-```
+## Project Layout
 
-### Development Workflow
-
-1. Make changes to the code
-2. Run tests to ensure everything works
-3. Use the `--test` flag to validate configurations without starting the server
-4. Start the server with the `--serve` flag to test your changes
-5. Use the `--reload` flag to reload configurations without restarting the server
-
-### Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-### Profiling
-Profiling can help you understand how your server spends his time
-#### Install
-To start profiling only a few modifications to `internal/webserver.go` are required.
-```go
-import (
-	"github.com/gofiber/fiber/v2/middleware/pprof"
-	// ...
-)
-// ...
-app.Use(pprof.New())
-```
-
-It might also be required to install graphviz.
-You might be able to make your life easier by using chocolatey:
-```cmd
-choco install graphviz
-```
-
-#### Start Profiling
-The profiler can be started with a single command.
-It will automatically fetch a 30s profile from the API and load a browser with the Graphic.
-```
-go tool pprof -http 127.0.0.1:8079 "http://localhost:8080/debug/pprof/profile?seconds=30"
+```text
+pacserver/
+├── cmd/           # CLI entrypoint
+├── internal/      # Server bootstrap, config, storage, and request routing
+├── pkg/IP/        # IPv4 and CIDR helpers
+├── pkg/IPLUT/     # Generic IP lookup tree
+├── pkg/admin/     # Admin UI and reload endpoints
+├── pkg/utils/     # Shared helpers
+├── docs/          # Flow diagram and docs assets
+└── demo_files/    # Example zones and PAC files
 ```

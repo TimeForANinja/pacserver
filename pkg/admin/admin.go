@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -147,6 +148,7 @@ func TriggerAdminReload(port uint16, secret string) error {
 	// Build the request exactly as the server expects it so the CLI stays tiny.
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/admin/reload", port), nil)
 	if err != nil {
+		log.Errorf("Admin reload request could not be created: %v\n%s", err, debug.Stack())
 		return err
 	}
 
@@ -157,7 +159,7 @@ func TriggerAdminReload(port uint16, secret string) error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errorf("Admin reload request failed to send: %v", err)
+		log.Errorf("Admin reload request failed to send: %v\n%s", err, debug.Stack())
 		return err
 	}
 	defer resp.Body.Close()
@@ -165,7 +167,7 @@ func TriggerAdminReload(port uint16, secret string) error {
 	_, _ = io.ReadAll(resp.Body)
 	// Treat anything other than 204 as a failed reload.
 	if resp.StatusCode != http.StatusNoContent {
-		log.Errorf("Admin reload request returned %s", resp.Status)
+		log.Errorf("Admin reload request returned %s\n%s", resp.Status, debug.Stack())
 		return fmt.Errorf("reload request failed with status %s", resp.Status)
 	}
 

@@ -7,6 +7,7 @@ import (
 
 var partialIPRegex = regexp.MustCompile(`^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){0,3}$`)
 
+// IsValidPartialIP reports whether the string is a valid IPv4 prefix.
 func IsValidPartialIP(ip string) bool {
 	// Regular expression to validate IP octets
 	// it matches 1-4 octets (as long as they don't end with a dot)
@@ -14,7 +15,7 @@ func IsValidPartialIP(ip string) bool {
 	return partialIPRegex.MatchString(ip)
 }
 
-// PadPartialIP ensures that the IP is always (at least) 4 octets long
+// PadPartialIP ensures that the IP is always four octets long.
 func PadPartialIP(ip string) string {
 	octets := strings.Split(ip, ".")
 	for len(octets) < 4 {

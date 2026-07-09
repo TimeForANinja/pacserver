@@ -24,6 +24,10 @@ var cache struct {
 
 // InitCaches loads all file-backed data and populates the in-memory cache.
 func InitCaches(cfg StorageConfig) error {
+	if cfg == (StorageConfig{}) {
+		return fmt.Errorf("storage config must not be empty")
+	}
+
 	// Build the lookup tree once at startup so request handling stays read-only.
 	problems := UpdateLookupTree(cfg)
 	if problems > 0 && !cfg.IgnoreMinors {
@@ -42,6 +46,7 @@ func UpdateLookupTree(cfg StorageConfig) int {
 	oldPACs := utils.MapClone(cache.cachedPACs)
 	oldDefault := cache.defaultPAC
 	oldWPAD := cache.wpadPAC
+	oldTree := cache.lookupTree
 	cache.RUnlock()
 
 	problemCounter := 0
@@ -84,6 +89,10 @@ func UpdateLookupTree(cfg StorageConfig) int {
 
 	// Rebuild the tree from the freshly parsed zones and templates.
 	newTree := buildLookupTree(entries, defaultPAC, cfg.ContactInfo)
+	if newTree == nil {
+		log.Warn("Reload - LUT build failed, keeping previous tree")
+		newTree = oldTree
+	}
 	log.Info("Reload - LUT build")
 
 	// Preserve any templates that still need to be served even if they were not referenced by zones.
@@ -92,8 +101,16 @@ func UpdateLookupTree(cfg StorageConfig) int {
 	// Swap the new tree into place atomically so readers never see a partially rebuilt cache.
 	cache.Lock()
 	cache.lookupTree = newTree
-	cache.defaultPAC = defaultPAC
-	cache.wpadPAC = wpadPAC
+	if defaultPAC != nil {
+		cache.defaultPAC = defaultPAC
+	} else {
+		cache.defaultPAC = oldDefault
+	}
+	if wpadPAC != nil {
+		cache.wpadPAC = wpadPAC
+	} else {
+		cache.wpadPAC = oldWPAD
+	}
 	cache.cachedIPMap = newIPMaps
 	cache.cachedPACs = mergedPACs
 	cache.Unlock()

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/timeforaninja/pacserver/internal"
@@ -12,6 +13,13 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("fatal startup panic: %v\n%s", r, debug.Stack())
+			os.Exit(1)
+		}
+	}()
+
 	// Define command-line flags
 	serveFlag := flag.Bool("serve", false, "Start the PAC server")
 	testFlag := flag.Bool("test", false, "Validate configs and PACs without starting the server")
@@ -28,8 +36,8 @@ func main() {
 	// Load configuration
 	err := internal.LoadConfig("config.yml")
 	if err != nil {
-		log.Error("Unable to load \"config.yml\". Exiting.")
-		panic(err)
+		log.Errorf("Unable to load config.yml: %v", err)
+		os.Exit(1)
 	}
 
 	if *serveFlag {
@@ -41,8 +49,8 @@ func main() {
 	if *reloadFlag {
 		err = admin.TriggerAdminReload(internal.GetConfig().Port, internal.GetConfig().AdminSecret)
 		if err != nil {
-			log.Error("Unable to trigger reload on the running server. Exiting.")
-			panic(err)
+			log.Errorf("Unable to trigger reload on the running server: %v", err)
+			os.Exit(1)
 		}
 		log.Info("Reload request sent successfully")
 		return
@@ -56,8 +64,8 @@ func main() {
 	// Initialize caches (load PACs and zones)
 	err = storage.InitCaches(internal.GetConfig().ToStorageConfig())
 	if err != nil {
-		log.Error("Unable to initialise Caches by loading PACs and Zones. Closing Server since we're unable to recover from this.")
-		panic(err)
+		log.Errorf("Unable to initialise caches: %v", err)
+		os.Exit(1)
 	}
 
 	// If test flag is provided, we can exit since we already validated when populating the caches

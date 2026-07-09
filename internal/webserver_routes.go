@@ -15,16 +15,25 @@ import (
 )
 
 func registerRoutes(app *fiber.App) {
+	if app == nil {
+		return
+	}
+
+	conf := GetConfig()
+	if conf == nil {
+		return
+	}
+
 	// Register Prometheus to track Stats
 	trackPac := setupPrometheus(app)
 
 	// Register Routes for a small embedded admin UI
-	admin.RegisterAdminUIRoute(app, GetConfig().AdminSecret, GetConfig().PrometheusPath)
-	admin.RegisterAdminLoginRoute(app, GetConfig().AdminSecret)
+	admin.RegisterAdminUIRoute(app, conf.AdminSecret, conf.PrometheusPath)
+	admin.RegisterAdminLoginRoute(app, conf.AdminSecret)
 
 	// Admin reload updates the LUT in place without restarting the process.
-	admin.RegisterAdminReloadRoute(app, GetConfig().AdminSecret, func() error {
-		storage.UpdateLookupTree(GetConfig().ToStorageConfig())
+	admin.RegisterAdminReloadRoute(app, conf.AdminSecret, func() error {
+		storage.UpdateLookupTree(conf.ToStorageConfig())
 		return nil
 	})
 
@@ -49,6 +58,10 @@ func registerRoutes(app *fiber.App) {
 }
 
 func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry)) error {
+	if c == nil {
+		return fiber.NewError(fiber.StatusBadRequest, "missing request context")
+	}
+
 	// Resolve the best candidate IP first so the lookup path stays deterministic.
 	ipStr, networkBits := extractIP(c)
 	log.Debugf("Received GET for IP: %s, Bits: %d", ipStr, networkBits)
@@ -69,8 +82,20 @@ func servePAC(
 	networkBits int,
 	trackPac func(pac *storage.LookupEntry),
 ) error {
+	if c == nil {
+		return fiber.NewError(fiber.StatusBadRequest, "missing request context")
+	}
+
 	// Count the served PAC before formatting the response so metrics match the actual reply.
-	trackPac(pac)
+	if trackPac != nil {
+		trackPac(pac)
+	}
+
+	if pac == nil {
+		LogUnexpectedError(fmt.Sprintf("missing PAC for %s/%d", ipStr, networkBits), fmt.Errorf("lookup returned nil"))
+		c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+		return c.Status(fiber.StatusInternalServerError).SendString("PAC unavailable")
+	}
 
 	// Debug output is opt-in via query parameter so normal responses stay lightweight.
 	hasDebug := false
@@ -83,9 +108,13 @@ func servePAC(
 
 	if hasDebug {
 		// In debug mode, return the resolved request, the matching path, and the final PAC body.
+		matchedIP := ""
+		if ipNet != nil {
+			matchedIP = ipNet.ToString()
+		}
 		pacMeta, err := json.MarshalIndent(fiber.Map{
 			"requested_ip": fmt.Sprintf("%s/%d", ipStr, networkBits),
-			"matched_ip":   ipNet.ToString(),
+			"matched_ip":   matchedIP,
 			"matched_rule": pac.Stringify(),
 		}, "", "\t")
 		if err != nil {
@@ -95,7 +124,7 @@ func servePAC(
 
 		treeMeta := IPLUT.StringifyStack(stackTrace)
 
-		c.Set("content-type", "text/plain")
+		c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 		return c.SendString(strings.Join([]string{
 			string(pacMeta),
 			treeMeta,
@@ -108,6 +137,10 @@ func servePAC(
 }
 
 func extractIP(c *fiber.Ctx) (string, int) {
+	if c == nil {
+		return "", 32
+	}
+
 	// URL parameters take priority because they are explicit and easy to test.
 	if ipStr, bits, ok := extractURLIP(c); ok {
 		return ipStr, bits
@@ -127,6 +160,10 @@ func extractIP(c *fiber.Ctx) (string, int) {
 }
 
 func extractURLIP(c *fiber.Ctx) (string, int, bool) {
+	if c == nil {
+		return "", 32, false
+	}
+
 	// The route can include an explicit ip/netmask input
 	path := strings.TrimSpace(strings.Trim(c.Path(), "/"))
 	if path == "" {
@@ -155,6 +192,10 @@ func extractURLIP(c *fiber.Ctx) (string, int, bool) {
 }
 
 func extractXForwardedFor(c *fiber.Ctx) string {
+	if c == nil {
+		return ""
+	}
+
 	// Use only the first hop from X-Forwarded-For, since that is the client we care about.
 	xff := strings.TrimSpace(c.Get("X-Forwarded-For"))
 	if xff == "" {
