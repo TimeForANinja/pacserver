@@ -73,7 +73,7 @@ func RegisterAdminReloadRoute(app *fiber.App, secret string, reload func() error
 }
 
 // RegisterAdminUIRoute registers the protected admin web UI.
-func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string) {
+func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string, prodPort uint16) {
 	if app == nil {
 		return
 	}
@@ -101,7 +101,7 @@ func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string) {
 
 		// Once the token is present, render the dashboard and let the page reuse that same secret for reload.
 		log.Infof("Admin UI authenticated for %s", c.IP())
-		page, err := renderAdminPage(metricsPath)
+		page, err := renderAdminPage(metricsPath, prodPort)
 		if err != nil {
 			log.Errorf("Failed to render admin page: %v", err)
 			return fiber.NewError(fiber.StatusInternalServerError, "failed to render admin page")

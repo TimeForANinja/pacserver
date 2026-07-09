@@ -14,7 +14,7 @@ import (
 )
 
 // serveLookupRequest resolves the request IP against the LUT and returns the matching PAC.
-func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry)) error {
+func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry), forceDebug bool) error {
 	if c == nil {
 		return fiber.NewError(fiber.StatusBadRequest, "missing request context")
 	}
@@ -27,7 +27,7 @@ func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry)) e
 	pac, ipNet, stackTrace := storage.FindInLUT(ipStr, networkBits)
 
 	// serve the PAC
-	return servePAC(c, pac, stackTrace, ipNet, ipStr, networkBits, trackPac)
+	return servePAC(c, pac, stackTrace, ipNet, ipStr, networkBits, trackPac, forceDebug)
 }
 
 // servePAC writes the resolved PAC response and optionally returns debug metadata.
@@ -39,6 +39,7 @@ func servePAC(
 	ipStr string,
 	networkBits int,
 	trackPac func(pac *storage.LookupEntry),
+	forceDebug bool,
 ) error {
 	if c == nil {
 		return fiber.NewError(fiber.StatusBadRequest, "missing request context")
@@ -70,7 +71,7 @@ func servePAC(
 		}
 	}
 
-	if hasDebug {
+	if hasDebug || forceDebug {
 		// In debug mode, return the resolved request, the matching path, and the final PAC body.
 		matchedIP := ""
 		if ipNet != nil {

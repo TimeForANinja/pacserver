@@ -6,7 +6,7 @@ import (
 )
 
 func TestRenderAdminPage(t *testing.T) {
-	page, err := renderAdminPage("/metrics")
+	page, err := renderAdminPage("/metrics", 8082)
 	if err != nil {
 		t.Fatalf("renderAdminPage returned error: %v", err)
 	}

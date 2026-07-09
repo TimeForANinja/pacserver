@@ -18,7 +18,7 @@ func registerAdminRoutes(app *fiber.App) {
 	}
 
 	// The admin listener serves the UI and reload controls; it does not collect request metrics.
-	admin.RegisterAdminUIRoute(app, conf.AdminSecret, conf.PrometheusPath)
+	admin.RegisterAdminUIRoute(app, conf.AdminSecret, conf.PrometheusPath, conf.Port)
 	admin.RegisterAdminLoginRoute(app, conf.AdminSecret)
 	registerPrometheusEndpoint(app)
 
@@ -26,5 +26,10 @@ func registerAdminRoutes(app *fiber.App) {
 	admin.RegisterAdminReloadRoute(app, conf.AdminSecret, func() error {
 		storage.UpdateLookupTree(conf.ToStorageConfig())
 		return nil
+	})
+
+	// fallback default route, doing the same PAC Lookup as prod
+	app.Get("*", func(c *fiber.Ctx) error {
+		return serveLookupRequest(c, nil, true)
 	})
 }

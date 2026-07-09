@@ -126,7 +126,7 @@
 		</main>
 
 	<script>
-		const metricsUrl = {{ printf "%q" .PrometheusPath }};
+		const metricsUrl = {{ .PrometheusPath }};
 		const lookupForm = document.getElementById("lookupForm");
 		const ipInput = document.getElementById("ipInput");
 		const lookupOutput = document.getElementById("lookupOutput");
@@ -169,7 +169,7 @@
 		}
 
 		async function loadDebugReply(ip) {
-			const target = "/" + encodeURIComponent(ip) + "/32?debug";
+			const target = "/" + ip;
 			lookupStatus.textContent = "Loading " + target + "...";
 			try {
 				const response = await fetch(target, { cache: "no-store" });

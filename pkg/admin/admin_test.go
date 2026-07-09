@@ -13,7 +13,7 @@ import (
 func TestRegisterAdminUIRoute(t *testing.T) {
 	t.Run("prompts for secret when missing", func(t *testing.T) {
 		app := fiber.New()
-		RegisterAdminUIRoute(app, "secret", "/metrics")
+		RegisterAdminUIRoute(app, "secret", "/metrics", 8082)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 		resp, err := app.Test(req)
@@ -35,7 +35,7 @@ func TestRegisterAdminUIRoute(t *testing.T) {
 
 	t.Run("serves dashboard after login", func(t *testing.T) {
 		app := fiber.New()
-		RegisterAdminUIRoute(app, "secret", "/metrics")
+		RegisterAdminUIRoute(app, "secret", "/metrics", 8082)
 		RegisterAdminLoginRoute(app, "secret")
 
 		loginReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
