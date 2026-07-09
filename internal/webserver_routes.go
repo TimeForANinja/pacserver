@@ -211,16 +211,14 @@ func extractXForwardedFor(c *fiber.Ctx) string {
 		return ""
 	}
 
-	// the XFF can be either separated by a "," or a "-"
-	firstIP1 := strings.TrimSpace(strings.Split(xff, ",")[0])
-	log.Debug("firstIP1: ", firstIP1)
-	if IP.IsValidIP(firstIP1) {
-		return firstIP1
-	}
-	firstIP2 := strings.TrimSpace(strings.Split(xff, "-")[0])
-	log.Debug("firstIP2: ", firstIP2)
-	if IP.IsValidIP(firstIP2) {
-		return firstIP2
+	// the xff is a list of elements, usually separated by "," but we support a few others
+	separators := []string{",", "-", ";"}
+	for _, sep := range separators {
+		firstElement := strings.TrimSpace(strings.Split(xff, sep)[0])
+		log.Debug("element: ", firstElement)
+		if IP.IsValidIP(firstElement) {
+			return firstElement
+		}
 	}
 
 	return ""
