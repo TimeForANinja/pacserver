@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>pacserver admin</title>
+	<style>
+		body {
+			margin: 0;
+			min-height: 100vh;
+			display: grid;
+			place-items: center;
+			font-family: Arial, Helvetica, sans-serif;
+			background: #f5f7fb;
+			color: #172033;
+		}
+		form {
+			display: flex;
+			gap: 8px;
+			align-items: center;
+			padding: 16px;
+			border: 1px solid #c9d2e3;
+			border-radius: 6px;
+			background: white;
+			box-sizing: border-box;
+			max-width: 480px;
+			width: calc(100% - 32px);
+		}
+		input, button {
+			font: inherit;
+		}
+		input {
+			flex: 1;
+			min-width: 0;
+			padding: 10px 12px;
+			border: 1px solid #c9d2e3;
+			border-radius: 4px;
+		}
+		button {
+			padding: 10px 14px;
+			border: 1px solid #2457d6;
+			border-radius: 4px;
+			background: #2457d6;
+			color: white;
+			cursor: pointer;
+		}
+		p {
+			margin: 0;
+			font-size: 14px;
+			color: #5e6b85;
+		}
+		.stack {
+			display: grid;
+			gap: 12px;
+			width: 100%;
+		}
+	</style>
+</head>
+<body>
+	<form id="adminLoginForm">
+		<div class="stack">
+			<p>Enter the admin token to open the dashboard.</p>
+			<div style="display:flex; gap:8px; width:100%;">
+				<input id="adminSecretInput" type="password" placeholder="admin token" autocomplete="off" spellcheck="false">
+				<button type="submit">Open</button>
+			</div>
+		</div>
+	</form>
+	<script>
+		const adminLoginForm = document.getElementById("adminLoginForm");
+		const adminSecretInput = document.getElementById("adminSecretInput");
+
+		adminLoginForm.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			const secret = adminSecretInput.value.trim();
+			if (!secret) {
+				return;
+			}
+
+			try {
+				const response = await fetch("/admin/login", {
+					method: "POST",
+					cache: "no-store",
+					credentials: "same-origin",
+					headers: {
+						"X-Admin-Secret": secret,
+					},
+				});
+
+				if (!response.ok) {
+					throw new Error("login failed with status " + response.status);
+				}
+
+				window.location = "/admin";
+			} catch (error) {
+				alert("Unable to login: " + error);
+			}
+		});
+	</script>
+</body>
+</html>

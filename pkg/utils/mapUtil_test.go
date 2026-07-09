@@ -97,3 +97,48 @@ func TestMapToArray(t *testing.T) {
 		}
 	})
 }
+
+func TestMapClone(t *testing.T) {
+	t.Parallel()
+
+	t.Run("clones map contents without sharing storage", func(t *testing.T) {
+		original := map[string]int{
+			"one":   1,
+			"two":   2,
+			"three": 3,
+		}
+
+		clone := MapClone(original)
+
+		if !reflect.DeepEqual(original, clone) {
+			t.Fatalf("clone = %#v, want %#v", clone, original)
+		}
+
+		original["one"] = 10
+		delete(original, "two")
+		original["four"] = 4
+
+		if clone["one"] != 1 {
+			t.Fatalf("clone was mutated when original changed: %#v", clone)
+		}
+		if _, ok := clone["four"]; ok {
+			t.Fatalf("clone unexpectedly gained new key: %#v", clone)
+		}
+		if _, ok := clone["two"]; !ok {
+			t.Fatalf("clone unexpectedly lost key: %#v", clone)
+		}
+	})
+
+	t.Run("returns empty map for nil input", func(t *testing.T) {
+		var original map[string]int
+
+		clone := MapClone(original)
+
+		if clone == nil {
+			t.Fatal("clone should be an allocated empty map")
+		}
+		if len(clone) != 0 {
+			t.Fatalf("clone length = %d, want 0", len(clone))
+		}
+	})
+}

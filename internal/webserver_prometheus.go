@@ -6,24 +6,29 @@ package internal
  */
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/cakturk/go-netstat/netstat"
 	"github.com/gofiber/fiber/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/timeforaninja/pacserver/internal/storage"
 	myPrometheus "github.com/timeforaninja/pacserver/pkg/prometheus"
-	"strconv"
-	"time"
 )
 
 // Custom metrics for Prometheus
 var (
 	// Response time metrics
+	// Histogram of request durations by fixed buckets.
+	// Use this for fleet-wide aggregation and PromQL percentile calculations.
 	responseTimeHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "app_response_time_hist_seconds",
 		Help:    "Response time distribution in seconds",
 		Buckets: []float64{1e-7, 5e-7, 1e-6, 5e-6, 1e-5, 5e-5, 0.0001, 0.0005, 0.001, 0.005, 0.01},
 	})
-
+	// Summary of request durations with client-side quantile estimation.
+	// Useful for per-process percentiles but not aggregatable across instances.
 	responseTimeSummary = prometheus.NewSummary(prometheus.SummaryOpts{
 		Name: "app_response_time_summary_seconds",
 		Help: "Response time distribution in seconds",
@@ -43,12 +48,12 @@ var (
 		},
 		[]string{"state"},
 		func() map[string]float64 {
-			// list all the TCP sockets for your HTTP server
+			// Pull the current TCP socket table each scrape so the metric reflects live state.
 			tabs, err := netstat.TCPSocks(netstat.NoopFilter)
 			if err != nil {
 				return make(map[string]float64)
 			}
-			// Create a map and count states
+			// Fold the raw socket list into label counts for Prometheus.
 			stateCounts := make(map[string]float64)
 			for _, tab := range tabs {
 				state := tab.State.String()
@@ -90,13 +95,13 @@ var (
 	// those include cgo, memory and cpu times
 )
 
-func setupPrometheus(app *fiber.App) func(pac *LookupElement) {
-	// skip Prometheus setup if not enabled
+func setupPrometheus(app *fiber.App) func(pac *storage.LookupEntry) {
+	// Return a no-op tracker when metrics are disabled so callers do not need branching.
 	if !GetConfig().PrometheusEnabled {
-		return func(pac *LookupElement) {}
+		return func(pac *storage.LookupEntry) {}
 	}
 
-	// Register custom metrics with Prometheus
+	// Register the custom collectors once during startup.
 	prometheus.MustRegister(responseTimeHistogram)
 	prometheus.MustRegister(responseTimeSummary)
 	prometheus.MustRegister(openSocketCounter)
@@ -105,37 +110,37 @@ func setupPrometheus(app *fiber.App) func(pac *LookupElement) {
 	prometheus.MustRegister(dataInCounter)
 	prometheus.MustRegister(dataOutCounter)
 
-	// register prometheus app route
+	// Expose the scrape endpoint alongside the application routes.
 	prom := fiberprometheus.New("pacserver")
 	prom.RegisterAt(app, GetConfig().PrometheusPath)
 
-	// Add middleware to track response times and errors
+	// Measure request size, duration, response size, and final status for every request.
 	app.Use(func(c *fiber.Ctx) error {
-		// Record request size
+		// Record request size before the handler mutates the response.
 		dataInCounter.Add(float64(len(c.Request().Body())))
 
-		// Start timer for response time
+		// Start timing as close to the handler invocation as possible.
 		startTime := time.Now()
 
-		// Process request
+		// Run the handler chain and observe the result afterwards.
 		err := c.Next()
 
-		// Record response time
+		// Record response time after the handler completes.
 		duration := time.Since(startTime).Seconds()
 		responseTimeHistogram.Observe(duration)
 		responseTimeSummary.Observe(duration)
 
-		// Record response size
+		// Record response size from the final response body.
 		dataOutCounter.Add(float64(len(c.Response().Body())))
 
-		// Track HTTP codes
+		// Count the final HTTP status for error tracking and dashboards.
 		httpErrorCounter.WithLabelValues(strconv.Itoa(c.Response().StatusCode())).Inc()
 
 		return err
 	})
 
-	// return a func to track PAC Files chosen
-	return func(pac *LookupElement) {
+	// Return a PAC tracker so the route handlers can attribute responses to file names.
+	return func(pac *storage.LookupEntry) {
 		if pac == nil {
 			pacFileCounter.WithLabelValues("default").Inc()
 		} else {

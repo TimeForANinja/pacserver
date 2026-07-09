@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>pacserver admin</title>
+	<style>
+		:root {
+			color-scheme: light;
+			--bg: #f5f7fb;
+			--panel: #ffffff;
+			--border: #c9d2e3;
+			--text: #172033;
+			--muted: #5e6b85;
+			--accent: #2457d6;
+		}
+		body {
+			margin: 0;
+			font-family: Arial, Helvetica, sans-serif;
+			background: var(--bg);
+			color: var(--text);
+		}
+		main {
+			display: grid;
+			grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+			gap: 16px;
+			padding: 16px;
+			min-height: 100vh;
+			box-sizing: border-box;
+		}
+		.stack {
+			display: grid;
+			gap: 16px;
+			align-content: start;
+		}
+		.panel {
+			background: var(--panel);
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			padding: 16px;
+			box-sizing: border-box;
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+		}
+		h1, h2 {
+			margin: 0 0 12px 0;
+			font-size: 18px;
+		}
+		h3 {
+			margin: 0 0 8px 0;
+			font-size: 14px;
+		}
+		form {
+			display: flex;
+			gap: 8px;
+			margin-bottom: 12px;
+		}
+		input, button {
+			font: inherit;
+		}
+		input {
+			flex: 1;
+			min-width: 0;
+			padding: 10px 12px;
+			border: 1px solid var(--border);
+			border-radius: 4px;
+		}
+		button {
+			padding: 10px 14px;
+			border: 1px solid var(--accent);
+			border-radius: 4px;
+			background: var(--accent);
+			color: white;
+			cursor: pointer;
+		}
+		pre {
+			margin: 0;
+			padding: 12px;
+			background: #0f172a;
+			color: #e2e8f0;
+			border-radius: 4px;
+			overflow: auto;
+			white-space: pre-wrap;
+			word-break: break-word;
+			flex: 1;
+			min-height: 0;
+		}
+		.small {
+			font-size: 12px;
+			color: var(--muted);
+			margin: 0 0 12px 0;
+		}
+		@media (max-width: 900px) {
+			main {
+				grid-template-columns: 1fr;
+			}
+		}
+	</style>
+</head>
+	<body>
+		<main>
+			<section class="panel">
+				<h1>Lookup debug</h1>
+				<p class="small">Enter an IP and fetch the debug reply from the PAC lookup route.</p>
+				<form id="lookupForm">
+					<input id="ipInput" name="ip" type="text" placeholder="192.168.0.1" autocomplete="off" spellcheck="false">
+					<button type="submit">Submit</button>
+				</form>
+				<p id="lookupStatus" class="small"></p>
+				<pre id="lookupOutput">Waiting for input.</pre>
+			</section>
+			<div class="stack">
+				<section class="panel">
+					<h3>Reload</h3>
+					<p class="small">Trigger a live PAC reload on the server.</p>
+					<button id="reloadButton" type="button">Reload</button>
+					<p id="reloadStatus" class="small"></p>
+				</section>
+				<section class="panel">
+					<h2>Metrics</h2>
+					<p class="small">Refreshing every 5 seconds from {{.PrometheusPath}}.</p>
+					<pre id="metricsOutput">Loading metrics...</pre>
+				</section>
+			</div>
+		</main>
+
+	<script>
+		const metricsPath = {{ .PrometheusPath }};
+		const lookupForm = document.getElementById("lookupForm");
+		const ipInput = document.getElementById("ipInput");
+		const lookupOutput = document.getElementById("lookupOutput");
+		const lookupStatus = document.getElementById("lookupStatus");
+		const metricsOutput = document.getElementById("metricsOutput");
+		const reloadButton = document.getElementById("reloadButton");
+		const reloadStatus = document.getElementById("reloadStatus");
+
+		async function loadMetrics() {
+			try {
+				const response = await fetch(metricsPath, { cache: "no-store" });
+				metricsOutput.textContent = await response.text();
+			} catch (error) {
+				metricsOutput.textContent = "Unable to load metrics: " + error;
+			}
+		}
+
+		async function triggerReload() {
+			reloadStatus.textContent = "";
+			reloadButton.disabled = true;
+			reloadButton.textContent = "Reloading";
+			try {
+				const response = await fetch("/admin/reload", {
+					method: "POST",
+					cache: "no-store",
+					credentials: "same-origin",
+				});
+
+				if (!response.ok) {
+					throw new Error("reload failed with status " + response.status);
+				}
+
+				reloadStatus.textContent = "Reload request sent successfully.";
+			} catch (error) {
+				reloadStatus.textContent = "Unable to reload: " + error;
+			} finally {
+				reloadButton.disabled = false;
+				reloadButton.textContent = "Reload";
+			}
+		}
+
+		async function loadDebugReply(ip) {
+			const target = "/" + encodeURIComponent(ip) + "/32?debug";
+			lookupStatus.textContent = "Loading " + target + "...";
+			try {
+				const response = await fetch(target, { cache: "no-store" });
+				lookupOutput.textContent = await response.text();
+				lookupStatus.textContent = "";
+			} catch (error) {
+				lookupStatus.textContent = "Unable to load debug reply: " + error;
+			}
+		}
+
+		lookupForm.addEventListener("submit", (event) => {
+			event.preventDefault();
+			const ip = ipInput.value.trim();
+			if (!ip) {
+				lookupStatus.textContent = "Enter an IP address first.";
+				return;
+			}
+			loadDebugReply(ip);
+		});
+
+		reloadButton.addEventListener("click", triggerReload);
+
+		loadMetrics();
+		setInterval(loadMetrics, 5000);
+	</script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+package internal
+
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
+	"github.com/timeforaninja/pacserver/internal/storage"
+	"github.com/timeforaninja/pacserver/pkg/IP"
+	"github.com/timeforaninja/pacserver/pkg/IPLUT"
+	"github.com/timeforaninja/pacserver/pkg/admin"
+)
+
+func registerRoutes(app *fiber.App) {
+	// Register Prometheus to track Stats
+	trackPac := setupPrometheus(app)
+
+	// Register Routes for a small embedded admin UI
+	admin.RegisterAdminUIRoute(app, GetConfig().AdminSecret, GetConfig().PrometheusPath)
+	admin.RegisterAdminLoginRoute(app, GetConfig().AdminSecret)
+
+	// Admin reload updates the LUT in place without restarting the process.
+	admin.RegisterAdminReloadRoute(app, GetConfig().AdminSecret, func() error {
+		storage.UpdateLookupTree(GetConfig().ToStorageConfig())
+		return nil
+	})
+
+	// Serve the dedicated WPAD file directly, since it is not resolved through the LUT.
+	app.Get("/wpad.dat", func(c *fiber.Ctx) error {
+		log.Debug("Received GET for /wpad.dat")
+		return servePAC(
+			c,
+			storage.WPAD(),
+			make([]*storage.LookupEntry, 0),
+			&IP.Net{},
+			"",
+			32,
+			trackPac,
+		)
+	})
+
+	// All other requests go through request IP extraction and LUT lookup.
+	app.Get("/*", func(c *fiber.Ctx) error {
+		return serveLookupRequest(c, trackPac)
+	})
+}
+
+func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry)) error {
+	// Resolve the best candidate IP first so the lookup path stays deterministic.
+	ipStr, networkBits := extractIP(c)
+	log.Debugf("Received GET for IP: %s, Bits: %d", ipStr, networkBits)
+
+	// find the PAC entry for the candidate IP
+	pac, ipNet, stackTrace := storage.FindInLUT(ipStr, networkBits)
+
+	// serve the PAC
+	return servePAC(c, pac, stackTrace, ipNet, ipStr, networkBits, trackPac)
+}
+
+func servePAC(
+	c *fiber.Ctx,
+	pac *storage.LookupEntry,
+	stackTrace []*storage.LookupEntry,
+	ipNet *IP.Net,
+	ipStr string,
+	networkBits int,
+	trackPac func(pac *storage.LookupEntry),
+) error {
+	// Count the served PAC before formatting the response so metrics match the actual reply.
+	trackPac(pac)
+
+	// Debug output is opt-in via query parameter so normal responses stay lightweight.
+	hasDebug := false
+	for key := range c.Queries() {
+		if strings.EqualFold(key, "debug") {
+			hasDebug = true
+			break
+		}
+	}
+
+	if hasDebug {
+		// In debug mode, return the resolved request, the matching path, and the final PAC body.
+		pacMeta, err := json.MarshalIndent(fiber.Map{
+			"requested_ip": fmt.Sprintf("%s/%d", ipStr, networkBits),
+			"matched_ip":   ipNet.ToString(),
+			"matched_rule": pac.Stringify(),
+		}, "", "\t")
+		if err != nil {
+			log.Errorf("Error marshaling debug JSON: %v", err)
+			return err
+		}
+
+		treeMeta := IPLUT.StringifyStack(stackTrace)
+
+		c.Set("content-type", "text/plain")
+		return c.SendString(strings.Join([]string{
+			string(pacMeta),
+			treeMeta,
+			pac.Variant,
+		}, "\n\n---------------------------------------\n\n"))
+	}
+
+	c.Set("content-type", "application/x-ns-proxy-autoconfig")
+	return c.SendString(pac.Variant)
+}
+
+func extractIP(c *fiber.Ctx) (string, int) {
+	// URL parameters take priority because they are explicit and easy to test.
+	if ipStr, bits, ok := extractURLIP(c); ok {
+		return ipStr, bits
+	}
+
+	// If the URL does not specify an IP, fall back to the forwarded client address.
+	if ipStr := extractXForwardedFor(c); ipStr != "" {
+		return ipStr, 32
+	}
+
+	// As a last resort, use the direct remote address from the connection.
+	if ipStr := strings.TrimSpace(c.IP()); IP.IsValidIP(ipStr) {
+		return ipStr, 32
+	}
+
+	return "", 32
+}
+
+func extractURLIP(c *fiber.Ctx) (string, int, bool) {
+	// The route can include an explicit ip/netmask input
+	path := strings.TrimSpace(strings.Trim(c.Path(), "/"))
+	if path == "" {
+		return "", 32, false
+	}
+	segments := strings.Split(path, "/")
+	if len(segments) == 0 {
+		return "", 32, false
+	}
+
+	// The first segment is always the partial IP.
+	ipStr := strings.TrimSpace(segments[0])
+	if !IP.IsValidPartialIP(ipStr) {
+		return "", 32, false
+	}
+
+	// If a second segment exists, treat it as the explicit CIDR mask.
+	networkBits := len(strings.Split(ipStr, ".")) * 8
+	if len(segments) > 1 {
+		if cidr, err := strconv.Atoi(strings.TrimSpace(segments[1])); err == nil {
+			networkBits = cidr
+		}
+	}
+
+	return IP.PadPartialIP(ipStr), networkBits, true
+}
+
+func extractXForwardedFor(c *fiber.Ctx) string {
+	// Use only the first hop from X-Forwarded-For, since that is the client we care about.
+	xff := strings.TrimSpace(c.Get("X-Forwarded-For"))
+	if xff == "" {
+		return ""
+	}
+
+	// the XFF can be either separated by a "," or a "-"
+	firstIP1 := strings.TrimSpace(strings.Split(xff, ",")[0])
+	if IP.IsValidIP(firstIP1) {
+		return firstIP1
+	}
+	firstIP2 := strings.TrimSpace(strings.Split(xff, "-")[0])
+	if IP.IsValidIP(firstIP2) {
+		return firstIP2
+	}
+
+	return ""
+}

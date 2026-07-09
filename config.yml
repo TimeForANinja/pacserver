@@ -5,10 +5,8 @@ wpadFile: "demo_files/pacs/wpad.dat"
 contactInfo: "NOC Germany"
 accessLogFile: "./access.log"
 eventLogFile: "./events.log"
-pidFile: "./pacserver.pid"
+adminSecret: "change-me"
 ignoreMinors: true
-# set maxCacheAge < 0 to disables auto refresh
-maxCacheAge: 3600 # 60x60 > 1h cache age
 port: 8081
 # Prometheus metrics configuration
 prometheusEnabled: true
