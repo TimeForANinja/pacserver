@@ -10,6 +10,7 @@ import (
 
 type lookupTreeNode = IPLUT.Node[*LookupEntry]
 
+// buildLookupTree converts the loaded lookup entries into the in-memory IPLUT tree.
 func buildLookupTree(entries []*LookupEntry, defaultPAC *LookupEntry, contactInfo string) *lookupTreeNode {
 	// Use the default PAC as the root so every lookup tree has a stable fallback.
 	root := buildRootEntry(defaultPAC, contactInfo)
@@ -30,6 +31,7 @@ func buildLookupTree(entries []*LookupEntry, defaultPAC *LookupEntry, contactInf
 	return IPLUT.Build(rootNode, nodes)
 }
 
+// buildRootEntry returns the root PAC entry or builds a fallback one when needed.
 func buildRootEntry(defaultPAC *LookupEntry, contactInfo string) *LookupEntry {
 	// Reuse the compiled default PAC when one is already available.
 	if defaultPAC != nil {
@@ -95,6 +97,7 @@ func buildLookupEntries(newIPMaps []*IPMap, newPACs map[string]*PACTemplate, old
 	return res, keepPACs, problemCounter
 }
 
+// loadSpecialEntry compiles the default or WPAD PAC file and reuses the cached copy on failure.
 func loadSpecialEntry(path, contactInfo string, fallback *LookupEntry) (*LookupEntry, int) {
 	// The special PACs are compiled separately because they are not part of the zone table.
 	absPath, err := filepath.Abs(path)

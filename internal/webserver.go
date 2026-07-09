@@ -63,6 +63,7 @@ func LaunchServer() {
 	}
 }
 
+// newHTTPApp builds a Fiber app with the shared request limits and error handling.
 func newHTTPApp() *fiber.App {
 	return fiber.New(fiber.Config{
 		EnablePrintRoutes: false,
@@ -83,6 +84,7 @@ func newHTTPApp() *fiber.App {
 	})
 }
 
+// installMiddlewares wires panic recovery, compression, and access logging onto an app.
 func installMiddlewares(app *fiber.App) {
 	if app == nil {
 		return

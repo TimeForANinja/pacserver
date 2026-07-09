@@ -24,7 +24,7 @@ type accessLogEntry struct {
 	LatencyMS     int64  `json:"latency_ms"`
 	SettledIP     string `json:"settled_ip"`
 	XForwardedFor string `json:"xff,omitempty"`
-	ServedPAC   string `json:"served_pac,omitempty"`
+	ServedPAC     string `json:"served_pac,omitempty"`
 }
 
 // accessLogMiddleware records one JSON-line access log entry after each request completes.

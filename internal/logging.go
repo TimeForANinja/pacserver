@@ -12,6 +12,7 @@ import (
 
 var accessLog *lumberjack.Logger
 
+// getLoglevel converts the configured loglevel string into a Fiber log level.
 func (conf *Config) getLoglevel() log.Level {
 	if conf == nil {
 		return log.LevelInfo
@@ -54,6 +55,7 @@ func LogUnexpectedError(context string, err error) {
 	log.Errorf("%s: %v\n%s", context, err, debug.Stack())
 }
 
+// getAccessLogger returns the shared rotating writer for access logs.
 func getAccessLogger() io.Writer {
 	conf := GetConfig()
 	if conf == nil {

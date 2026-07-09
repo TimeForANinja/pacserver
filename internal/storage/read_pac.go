@@ -40,6 +40,7 @@ func ReadPACTemplates(relPacDir string) ([]*PACTemplate, error, int) {
 	return templates, nil, problemCounter
 }
 
+// readPACTemplate loads one PAC file from disk and records its normalized name.
 func readPACTemplate(fullPath, filename string) (*PACTemplate, error) {
 	// PAC files are served as plain text, so a raw read is enough here.
 	fileBytes, err := os.ReadFile(fullPath)

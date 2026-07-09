@@ -32,6 +32,7 @@ func ReadIPMaps(relPath string) ([]*IPMap, error, int) {
 	return parseIPMapCSV(file)
 }
 
+// parseIPMapCSV walks the zone file line by line so one bad row does not stop the rest.
 func parseIPMapCSV(r io.Reader) ([]*IPMap, error, int) {
 	// Scan line by line so one bad row does not block the rest of the file.
 	scanner := bufio.NewScanner(r)
@@ -60,6 +61,7 @@ func parseIPMapCSV(r io.Reader) ([]*IPMap, error, int) {
 	return mappings, nil, problemCounter
 }
 
+// parseIPMapLine converts one CSV row into an IPMap entry after filtering comments and blanks.
 func parseIPMapLine(line string) (*IPMap, error) {
 	// Skip comments and blank lines because the CSV is also used as a human-edited file.
 	line = strings.TrimSpace(line)

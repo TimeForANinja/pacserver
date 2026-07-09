@@ -6,6 +6,7 @@ import (
 	"github.com/timeforaninja/pacserver/pkg/admin"
 )
 
+// registerAdminRoutes wires the admin dashboard, login, reload, and metrics routes.
 func registerAdminRoutes(app *fiber.App) {
 	if app == nil {
 		return

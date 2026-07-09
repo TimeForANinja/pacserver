@@ -95,6 +95,7 @@ var (
 	// those include cgo, memory and cpu times
 )
 
+// registerPrometheusMiddleware attaches the request counters to the prod listener.
 func registerPrometheusMiddleware(app *fiber.App) func(pac *storage.LookupEntry) {
 	// Return a no-op tracker when metrics are disabled so callers do not need branching.
 	if app == nil || GetConfig() == nil || !GetConfig().PrometheusEnabled {
@@ -145,7 +146,12 @@ func registerPrometheusMiddleware(app *fiber.App) func(pac *storage.LookupEntry)
 	}
 }
 
+// registerPrometheusEndpoint exposes the scrape endpoint on the admin listener.
 func registerPrometheusEndpoint(app *fiber.App) {
+	if app == nil || GetConfig() == nil || !GetConfig().PrometheusEnabled {
+		return
+	}
+
 	// Expose the scrape endpoint on the admin listener only.
 	prom := fiberprometheus.New("pacserver")
 	prom.RegisterAt(app, GetConfig().PrometheusPath)

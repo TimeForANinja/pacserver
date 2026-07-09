@@ -13,6 +13,7 @@ import (
 	"github.com/timeforaninja/pacserver/pkg/IPLUT"
 )
 
+// serveLookupRequest resolves the request IP against the LUT and returns the matching PAC.
 func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry)) error {
 	if c == nil {
 		return fiber.NewError(fiber.StatusBadRequest, "missing request context")
@@ -29,6 +30,7 @@ func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry)) e
 	return servePAC(c, pac, stackTrace, ipNet, ipStr, networkBits, trackPac)
 }
 
+// servePAC writes the resolved PAC response and optionally returns debug metadata.
 func servePAC(
 	c *fiber.Ctx,
 	pac *storage.LookupEntry,
@@ -98,6 +100,7 @@ func servePAC(
 	return c.SendString(pac.Variant)
 }
 
+// extractIP determines the client IP from the request path, forwarded headers, or socket address.
 func extractIP(c *fiber.Ctx) (string, int) {
 	if c == nil {
 		return "", 32
@@ -122,6 +125,7 @@ func extractIP(c *fiber.Ctx) (string, int) {
 	return "", 32
 }
 
+// extractURLIP parses an explicit IP or IP/CIDR path segment from the request URL.
 func extractURLIP(c *fiber.Ctx) (string, int, bool) {
 	if c == nil {
 		return "", 32, false
@@ -154,6 +158,7 @@ func extractURLIP(c *fiber.Ctx) (string, int, bool) {
 	return IP.PadPartialIP(ipStr), networkBits, true
 }
 
+// extractXForwardedFor returns the first valid client IP from the forwarded header chain.
 func extractXForwardedFor(c *fiber.Ctx) string {
 	if c == nil {
 		return ""

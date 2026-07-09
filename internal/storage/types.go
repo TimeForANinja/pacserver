@@ -38,6 +38,7 @@ type LookupEntry struct {
 	Variant string
 }
 
+// Stringify renders the lookup entry as a compact human-readable zone description.
 func (e *LookupEntry) Stringify() string {
 	if e == nil || e.IPMap == nil {
 		return ""
@@ -56,6 +57,7 @@ func (e *LookupEntry) Stringify() string {
 	)
 }
 
+// IsIdentical compares lookup entries by the PAC file they point to.
 func (e *LookupEntry) IsIdentical(other any) bool {
 	if e == nil || e.PAC == nil || other == nil {
 		return false

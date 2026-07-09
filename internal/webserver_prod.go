@@ -7,6 +7,7 @@ import (
 	"github.com/timeforaninja/pacserver/pkg/IP"
 )
 
+// registerProdRoutes wires the PAC listener, including the WPAD and lookup routes.
 func registerProdRoutes(app *fiber.App) {
 	if app == nil {
 		return
