@@ -73,7 +73,7 @@ func RegisterAdminReloadRoute(app *fiber.App, secret string, reload func() error
 }
 
 // RegisterAdminUIRoute registers the protected admin web UI.
-func RegisterAdminUIRoute(app *fiber.App, secret, metricsPath string) {
+func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string) {
 	if app == nil {
 		return
 	}

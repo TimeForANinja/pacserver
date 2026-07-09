@@ -126,7 +126,7 @@
 		</main>
 
 	<script>
-		const metricsPath = {{ .PrometheusPath }};
+		const metricsUrl = {{ printf "%q" .PrometheusPath }};
 		const lookupForm = document.getElementById("lookupForm");
 		const ipInput = document.getElementById("ipInput");
 		const lookupOutput = document.getElementById("lookupOutput");
@@ -137,7 +137,7 @@
 
 		async function loadMetrics() {
 			try {
-				const response = await fetch(metricsPath, { cache: "no-store" });
+				const response = await fetch(metricsUrl, { cache: "no-store" });
 				metricsOutput.textContent = await response.text();
 			} catch (error) {
 				metricsOutput.textContent = "Unable to load metrics: " + error;

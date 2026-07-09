@@ -21,12 +21,12 @@ pacserver --test
 pacserver --reload
 ```
 
-`--serve` starts the HTTP server. `--test` loads the config, zones, and PAC files, then exits after validation. `--reload` sends a reload request to a running server using the configured admin secret.
+`--serve` starts the prod and admin listeners. `--test` loads the config, zones, and PAC files, then exits after validation. `--reload` sends a reload request to the admin listener using the configured admin secret.
 
 ## Request Routes
 
-- `/wpad.dat` serves the configured WPAD file directly
-- `/*` resolves the best PAC for the request source IP
+- `/wpad.dat` serves the configured WPAD file directly on the prod listener
+- `/*` resolves the best PAC for the request source IP on the prod listener
 - `/:ip` resolves a specific IPv4 address as `/32`
 - `/:ip/:cidr` resolves a specific IPv4 network prefix
 
@@ -38,27 +38,29 @@ Append `?debug=1` to any PAC route to return the matched request, lookup path, a
 - `POST /admin/login` stores the admin secret in a cookie
 - `POST /admin/reload` triggers a live reload
 
-The admin endpoints require the configured `adminSecret`.
+The admin endpoints live on the admin listener and require the configured `adminSecret`.
+Prometheus metrics are exposed on the admin listener and observe only the prod listener's request traffic.
 
 ## Configuration
 
 The application expects `config.yml` in the current working directory.
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `ipMapFile` | string | `data/zones.csv` | CSV file mapping IP networks to PAC files |
-| `pacRoot` | string | `data/pacs` | Directory containing PAC templates |
-| `defaultPACFile` | string | `${pacRoot}/default.pac` | PAC served when no zone matches |
-| `wpadFile` | string | `${pacRoot}/wpad.dat` | File served at `/wpad.dat` |
-| `contactInfo` | string | `Your Help Desk` | Contact text injected into PAC templates |
-| `accessLogFile` | string | `access.log` | JSON-lines request access log file |
-| `eventLogFile` | string | `event.log` | Application event log file |
-| `port` | uint16 | `8080` | HTTP listen port |
-| `adminSecret` | string | empty | Shared secret for admin and reload endpoints |
-| `prometheusEnabled` | bool | `false` | Enable Prometheus metrics |
-| `prometheusPath` | string | `/metrics` | Metrics endpoint path |
-| `ignoreMinors` | bool | `false` | Continue startup when only minor load issues were found |
-| `loglevel` | string | `INFO` | Event-log level: `DEBUG`, `INFO`, `WARN`, or `ERROR` |
+| Field               | Type   | Default                  | Description                                             |
+|---------------------|--------|--------------------------|---------------------------------------------------------|
+| `ipMapFile`         | string | `data/zones.csv`         | CSV file mapping IP networks to PAC files               |
+| `pacRoot`           | string | `data/pacs`              | Directory containing PAC templates                      |
+| `defaultPACFile`    | string | `${pacRoot}/default.pac` | PAC served when no zone matches                         |
+| `wpadFile`          | string | `${pacRoot}/wpad.dat`    | File served at `/wpad.dat`                              |
+| `contactInfo`       | string | `Your Help Desk`         | Contact text injected into PAC templates                |
+| `accessLogFile`     | string | `access.log`             | JSON-lines request access log file                      |
+| `eventLogFile`      | string | `event.log`              | Application event log file                              |
+| `port`              | uint16 | `8080`                   | Prod listener port                                      |
+| `adminPort`         | uint16 | `8082`                   | Admin listener port, including `/metrics`               |
+| `adminSecret`       | string | empty                    | Shared secret for admin and reload endpoints            |
+| `prometheusEnabled` | bool   | `false`                  | Enable Prometheus metrics                               |
+| `prometheusPath`    | string | `/metrics`               | Metrics endpoint path                                   |
+| `ignoreMinors`      | bool   | `false`                  | Continue startup when only minor load issues were found |
+| `loglevel`          | string | `INFO`                   | Event-log level: `DEBUG`, `INFO`, `WARN`, or `ERROR`    |
 
 ## Zones CSV
 
@@ -112,7 +114,7 @@ The current startup flow is:
 
 1. Load and validate `config.yml`
 2. Load zones and PAC templates into the lookup cache
-3. Start the HTTP server for `--serve`
+3. Start the prod and admin listeners for `--serve`
 4. Trigger a live reload for `--reload`
 5. Exit after validation for `--test`
 

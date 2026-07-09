@@ -47,7 +47,7 @@ func main() {
 	}
 
 	if *reloadFlag {
-		err = admin.TriggerAdminReload(internal.GetConfig().Port, internal.GetConfig().AdminSecret)
+		err = admin.TriggerAdminReload(internal.GetConfig().AdminPort, internal.GetConfig().AdminSecret)
 		if err != nil {
 			log.Errorf("Unable to trigger reload on the running server: %v", err)
 			os.Exit(1)

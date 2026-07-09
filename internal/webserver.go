@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,7 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-// LaunchServer starts the HTTP server with request logging and panic recovery.
+// LaunchServer starts the prod and admin listeners.
 func LaunchServer() {
 	conf := GetConfig()
 	if conf == nil {
@@ -19,8 +20,51 @@ func LaunchServer() {
 		os.Exit(1)
 	}
 
-	// Keep the server setup in one place: config, shared middleware, and route wiring.
-	app := fiber.New(fiber.Config{
+	prodApp := newHTTPApp()
+	adminApp := newHTTPApp()
+
+	installMiddlewares(prodApp)
+	installMiddlewares(adminApp)
+
+	registerProdRoutes(prodApp)
+	registerAdminRoutes(adminApp)
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 2)
+
+	start := func(name string, app *fiber.App, port uint16) {
+		if app == nil || port == 0 {
+			return
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := app.Listen(fmt.Sprintf(":%d", port)); err != nil {
+				errCh <- fmt.Errorf("%s listener failed: %w", name, err)
+			}
+		}()
+	}
+
+	start("prod", prodApp, conf.Port)
+	start("admin", adminApp, conf.AdminPort)
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case err := <-errCh:
+		LogUnexpectedError("server listen failed", err)
+		os.Exit(1)
+	case <-done:
+		os.Exit(0)
+	}
+}
+
+func newHTTPApp() *fiber.App {
+	return fiber.New(fiber.Config{
 		EnablePrintRoutes: false,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -37,8 +81,13 @@ func LaunchServer() {
 			return fiber.NewError(fiber.StatusInternalServerError, "internal server error")
 		},
 	})
+}
 
-	// Install the safety middleware before any route-specific behavior.
+func installMiddlewares(app *fiber.App) {
+	if app == nil {
+		return
+	}
+
 	app.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 		StackTraceHandler: func(c *fiber.Ctx, panicValue interface{}) {
@@ -51,13 +100,4 @@ func LaunchServer() {
 	}))
 	app.Use(compress.New())
 	app.Use(accessLogMiddleware())
-
-	// Route registration lives elsewhere so the bootstrap stays small and readable.
-	registerRoutes(app)
-
-	// Start the server only after all middleware and routes are in place.
-	if err := app.Listen(fmt.Sprintf(":%d", conf.Port)); err != nil {
-		LogUnexpectedError("server listen failed", err)
-		os.Exit(1)
-	}
 }

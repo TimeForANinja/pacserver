@@ -11,52 +11,7 @@ import (
 	"github.com/timeforaninja/pacserver/internal/storage"
 	"github.com/timeforaninja/pacserver/pkg/IP"
 	"github.com/timeforaninja/pacserver/pkg/IPLUT"
-	"github.com/timeforaninja/pacserver/pkg/admin"
 )
-
-func registerRoutes(app *fiber.App) {
-	if app == nil {
-		return
-	}
-
-	conf := GetConfig()
-	if conf == nil {
-		return
-	}
-
-	// Register Prometheus to track Stats
-	trackPac := setupPrometheus(app)
-
-	// Register Routes for a small embedded admin UI
-	admin.RegisterAdminUIRoute(app, conf.AdminSecret, conf.PrometheusPath)
-	admin.RegisterAdminLoginRoute(app, conf.AdminSecret)
-
-	// Admin reload updates the LUT in place without restarting the process.
-	admin.RegisterAdminReloadRoute(app, conf.AdminSecret, func() error {
-		storage.UpdateLookupTree(conf.ToStorageConfig())
-		return nil
-	})
-
-	// Serve the dedicated WPAD file directly, since it is not resolved through the LUT.
-	app.Get("/wpad.dat", func(c *fiber.Ctx) error {
-		log.Debug("Received GET for /wpad.dat")
-		ipStr, _ := extractIP(c)
-		return servePAC(
-			c,
-			storage.WPAD(),
-			make([]*storage.LookupEntry, 0),
-			&IP.Net{},
-			ipStr,
-			32,
-			trackPac,
-		)
-	})
-
-	// All other requests go through request IP extraction and LUT lookup.
-	app.Get("/*", func(c *fiber.Ctx) error {
-		return serveLookupRequest(c, trackPac)
-	})
-}
 
 func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry)) error {
 	if c == nil {

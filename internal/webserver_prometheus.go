@@ -95,17 +95,13 @@ var (
 	// those include cgo, memory and cpu times
 )
 
-func setupPrometheus(app *fiber.App) func(pac *storage.LookupEntry) {
-	if app == nil || GetConfig() == nil {
-		return func(pac *storage.LookupEntry) {}
-	}
-
+func registerPrometheusMiddleware(app *fiber.App) func(pac *storage.LookupEntry) {
 	// Return a no-op tracker when metrics are disabled so callers do not need branching.
-	if !GetConfig().PrometheusEnabled {
+	if app == nil || GetConfig() == nil || !GetConfig().PrometheusEnabled {
 		return func(pac *storage.LookupEntry) {}
 	}
 
-	// Register the custom collectors once during startup.
+	// Register the custom collectors once during startup even if we wire the middleware to multiple apps.
 	prometheus.MustRegister(responseTimeHistogram)
 	prometheus.MustRegister(responseTimeSummary)
 	prometheus.MustRegister(openSocketCounter)
@@ -113,10 +109,6 @@ func setupPrometheus(app *fiber.App) func(pac *storage.LookupEntry) {
 	prometheus.MustRegister(pacFileCounter)
 	prometheus.MustRegister(dataInCounter)
 	prometheus.MustRegister(dataOutCounter)
-
-	// Expose the scrape endpoint alongside the application routes.
-	prom := fiberprometheus.New("pacserver")
-	prom.RegisterAt(app, GetConfig().PrometheusPath)
 
 	// Measure request size, duration, response size, and final status for every request.
 	app.Use(func(c *fiber.Ctx) error {
@@ -151,4 +143,10 @@ func setupPrometheus(app *fiber.App) func(pac *storage.LookupEntry) {
 			pacFileCounter.WithLabelValues(pac.IPMap.Filename).Inc()
 		}
 	}
+}
+
+func registerPrometheusEndpoint(app *fiber.App) {
+	// Expose the scrape endpoint on the admin listener only.
+	prom := fiberprometheus.New("pacserver")
+	prom.RegisterAt(app, GetConfig().PrometheusPath)
 }

@@ -21,6 +21,7 @@ type Config struct {
 	AccessLogFile     string `mapstructure:"accessLogFile"`
 	EventLogFile      string `mapstructure:"eventLogFile"`
 	Port              uint16 `mapstructure:"port"`
+	AdminPort         uint16 `mapstructure:"adminPort"`
 	AdminSecret       string `mapstructure:"adminSecret"`
 	PrometheusEnabled bool   `mapstructure:"prometheusEnabled"`
 	PrometheusPath    string `mapstructure:"prometheusPath"`
@@ -61,6 +62,7 @@ func loadConfigWithViper(filename string) (*Config, error) {
 	v.SetDefault("accessLogFile", "access.log")
 	v.SetDefault("eventLogFile", "event.log")
 	v.SetDefault("port", uint16(8080))
+	v.SetDefault("adminPort", uint16(8082))
 	v.SetDefault("adminSecret", "")
 	v.SetDefault("prometheusEnabled", false)
 	v.SetDefault("prometheusPath", "/metrics")
@@ -105,6 +107,15 @@ func validateConfig(conf *Config) error {
 
 	if strings.TrimSpace(conf.AdminSecret) == "" {
 		return fmt.Errorf("admin secret must be configured")
+	}
+	if conf.Port == 0 {
+		return fmt.Errorf("port must be configured")
+	}
+	if conf.AdminPort == 0 {
+		return fmt.Errorf("admin port must be configured")
+	}
+	if conf.AdminPort == conf.Port {
+		return fmt.Errorf("admin port must be different from the PAC port")
 	}
 
 	// Validate every file input up front so startup fails fast and predictably.
