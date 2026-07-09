@@ -8,6 +8,7 @@ eventLogFile: "./events.log"
 adminSecret: "change-me"
 ignoreMinors: true
 port: 8081
+loglevel: "debug"
 # Prometheus metrics configuration
 prometheusEnabled: true
 prometheusPath: "/metrics"

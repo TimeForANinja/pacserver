@@ -40,12 +40,13 @@ func registerRoutes(app *fiber.App) {
 	// Serve the dedicated WPAD file directly, since it is not resolved through the LUT.
 	app.Get("/wpad.dat", func(c *fiber.Ctx) error {
 		log.Debug("Received GET for /wpad.dat")
+		ipStr, _ := extractIP(c)
 		return servePAC(
 			c,
 			storage.WPAD(),
 			make([]*storage.LookupEntry, 0),
 			&IP.Net{},
-			"",
+			ipStr,
 			32,
 			trackPac,
 		)
@@ -84,6 +85,12 @@ func servePAC(
 ) error {
 	if c == nil {
 		return fiber.NewError(fiber.StatusBadRequest, "missing request context")
+	}
+
+	setAccessLogFields(c, ipStr)
+	setAccessLogPAC(c, "")
+	if pac != nil && pac.PAC != nil {
+		setAccessLogPAC(c, pac.PAC.Filename)
 	}
 
 	// Count the served PAC before formatting the response so metrics match the actual reply.
@@ -147,6 +154,7 @@ func extractIP(c *fiber.Ctx) (string, int) {
 	}
 
 	// If the URL does not specify an IP, fall back to the forwarded client address.
+	log.Debug("Headers:  ", c.GetReqHeaders())
 	if ipStr := extractXForwardedFor(c); ipStr != "" {
 		return ipStr, 32
 	}
@@ -198,16 +206,19 @@ func extractXForwardedFor(c *fiber.Ctx) string {
 
 	// Use only the first hop from X-Forwarded-For, since that is the client we care about.
 	xff := strings.TrimSpace(c.Get("X-Forwarded-For"))
+	log.Debug("xff:     ", xff)
 	if xff == "" {
 		return ""
 	}
 
 	// the XFF can be either separated by a "," or a "-"
 	firstIP1 := strings.TrimSpace(strings.Split(xff, ",")[0])
+	log.Debug("firstIP1: ", firstIP1)
 	if IP.IsValidIP(firstIP1) {
 		return firstIP1
 	}
 	firstIP2 := strings.TrimSpace(strings.Split(xff, "-")[0])
+	log.Debug("firstIP2: ", firstIP2)
 	if IP.IsValidIP(firstIP2) {
 		return firstIP2
 	}

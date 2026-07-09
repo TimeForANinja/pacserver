@@ -51,7 +51,7 @@ The application expects `config.yml` in the current working directory.
 | `defaultPACFile` | string | `${pacRoot}/default.pac` | PAC served when no zone matches |
 | `wpadFile` | string | `${pacRoot}/wpad.dat` | File served at `/wpad.dat` |
 | `contactInfo` | string | `Your Help Desk` | Contact text injected into PAC templates |
-| `accessLogFile` | string | `access.log` | Request access log file |
+| `accessLogFile` | string | `access.log` | JSON-lines request access log file |
 | `eventLogFile` | string | `event.log` | Application event log file |
 | `port` | uint16 | `8080` | HTTP listen port |
 | `adminSecret` | string | empty | Shared secret for admin and reload endpoints |
@@ -101,7 +101,7 @@ function FindProxyForURL(url, host) {
 
 ## Logging And Diagnostics
 
-- Every request is written to the access log.
+- Every request is written to the access log as a single JSON line with the request method, path, status, latency, settled IP, raw `X-Forwarded-For`, and served PAC filename.
 - Application logs go to stdout and the event log when serving.
 - Unexpected panics are recovered and logged with a stack trace.
 - Request handler errors and admin reload client failures are logged with contextual stack traces.
