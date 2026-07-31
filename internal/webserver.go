@@ -71,15 +71,30 @@ func newHTTPApp() *fiber.App {
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			status := fiber.StatusInternalServerError
+			message := "internal server error"
+			if fiberErr, ok := err.(*fiber.Error); ok {
+				status = fiberErr.Code
+				message = fiberErr.Message
+			}
+
+			// A connection deadline has already expired, so there is no response left to
+			// write. It is a normal client/network condition rather than an application fault.
+			if status == fiber.StatusRequestTimeout {
+				return nil
+			}
+
 			request := "request failed"
 			if c != nil {
 				request = fmt.Sprintf("request failed: %s %s from %s", c.Method(), c.OriginalURL(), c.IP())
 			}
-			LogUnexpectedError(request, err)
-			if fiberErr, ok := err.(*fiber.Error); ok {
-				return fiberErr
+			if status >= fiber.StatusInternalServerError {
+				LogUnexpectedError(request, err)
+			} else {
+				log.Warnf("%s: %v", request, err)
 			}
-			return fiber.NewError(fiber.StatusInternalServerError, "internal server error")
+			c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+			return c.Status(status).SendString(message)
 		},
 	})
 }

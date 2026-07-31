@@ -19,15 +19,73 @@ func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry), f
 		return fiber.NewError(fiber.StatusBadRequest, "missing request context")
 	}
 
-	// Resolve the best candidate IP first so the lookup path stays deterministic.
-	ipStr, networkBits := extractIP(c)
-	log.Debugf("Received GET for IP: %s, Bits: %d", ipStr, networkBits)
+	// 1. Extract all request facts without making a routing decision.
+	features := extractRequestFeatures(c, forceDebug)
+	// 2. Choose exactly one lookup key. IP and path deliberately remain separate.
+	ipStr, path := requestVerdict(features)
+	// 3. Fetch the PAC from the corresponding lookup table.
+	var pac *storage.LookupEntry
+	var ipNet *IP.Net
+	var stackTrace []*storage.LookupEntry
+	if path != "" {
+		pac = storage.FindRoute(path)
+		ipNet = &IP.Net{}
+	} else {
+		pac, ipNet, stackTrace = storage.FindInLUT(ipStr, features.RouteNetworkBits)
+	}
+	// 4. Record the inputs, decision, and result before writing the response.
+	pacName := ""
+	if pac != nil && pac.PAC != nil {
+		pacName = pac.PAC.Filename
+	}
+	log.Debugf("PAC lookup features=%+v verdict_ip=%q verdict_path=%q pac=%q", features, ipStr, path, pacName)
+	// 5. Serve the selected PAC.
+	return servePAC(c, pac, stackTrace, ipNet, ipStr, features.RouteNetworkBits, trackPac, features.Debug)
+}
 
-	// find the PAC entry for the candidate IP
-	pac, ipNet, stackTrace := storage.FindInLUT(ipStr, networkBits)
+type requestFeatures struct {
+	SourceIP         string
+	XForwardedForIP  string
+	RouteIP          string
+	RouteNetworkBits int
+	Debug            bool
+	RawRoute         string
+}
 
-	// serve the PAC
-	return servePAC(c, pac, stackTrace, ipNet, ipStr, networkBits, trackPac, forceDebug)
+func extractRequestFeatures(c *fiber.Ctx, forceDebug bool) requestFeatures {
+	f := requestFeatures{RouteNetworkBits: 32, Debug: forceDebug}
+	if c == nil {
+		return f
+	}
+	f.RawRoute = c.Path()
+	if source := strings.TrimSpace(c.IP()); IP.IsValidIP(source) {
+		f.SourceIP = source
+	}
+	f.XForwardedForIP = extractXForwardedFor(c)
+	if ip, bits, ok := extractURLIP(c); ok {
+		f.RouteIP, f.RouteNetworkBits = ip, bits
+	}
+	for key := range c.Queries() {
+		if strings.EqualFold(key, "debug") {
+			f.Debug = true
+			break
+		}
+	}
+	return f
+}
+
+// requestVerdict returns either an IP or a path, never both.
+func requestVerdict(f requestFeatures) (string, string) {
+	if f.RouteIP != "" {
+		return f.RouteIP, ""
+	}
+	if route := "/" + strings.Trim(strings.TrimSpace(f.RawRoute), "/"); route != "/" {
+		return "", route
+	}
+	if f.XForwardedForIP != "" {
+		return f.XForwardedForIP, ""
+	}
+	return f.SourceIP, ""
 }
 
 // servePAC writes the resolved PAC response and optionally returns debug metadata.

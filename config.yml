@@ -1,12 +1,13 @@
 ipMapFile: "demo_files/zones.csv"
+routeMapFile: "demo_files/routes.csv"
 pacRoot: "demo_files/pacs"
 defaultPACFile: "demo_files/pacs/default.pac"
-wpadFile: "demo_files/pacs/wpad.dat"
 contactInfo: "NOC Germany"
 accessLogFile: "./access.log"
 eventLogFile: "./events.log"
 adminSecret: "change-me"
 adminPort: 8082
+adminACLs: "127.0.0.1/32"
 ignoreMinors: true
 port: 80
 loglevel: "debug"

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/gofiber/fiber/v2/log"
@@ -14,9 +15,9 @@ var cache struct {
 	sync.RWMutex
 	// latest parsed tree
 	lookupTree *lookupTreeNode
+	routeLUT   map[string]*LookupEntry
 	// static mappers for special pacs
 	defaultPAC *LookupEntry
-	wpadPAC    *LookupEntry
 	// cached lists from the last tree parsing
 	cachedIPMap []*IPMap
 	cachedPACs  map[string]*PACTemplate
@@ -45,7 +46,6 @@ func UpdateLookupTree(cfg StorageConfig) int {
 	oldIPMaps := append([]*IPMap(nil), cache.cachedIPMap...)
 	oldPACs := utils.MapClone(cache.cachedPACs)
 	oldDefault := cache.defaultPAC
-	oldWPAD := cache.wpadPAC
 	oldTree := cache.lookupTree
 	cache.RUnlock()
 
@@ -53,6 +53,11 @@ func UpdateLookupTree(cfg StorageConfig) int {
 
 	// reload files from disk
 	newIPMaps, err1, probs1 := ReadIPMaps(cfg.IPMapFile)
+	var newRoutes []*RouteMap
+	var routeErr error
+	if strings.TrimSpace(cfg.RouteMapFile) != "" {
+		newRoutes, routeErr, problemCounter = readRoutesForReload(cfg.RouteMapFile, problemCounter)
+	}
 	problemCounter += probs1
 	newPACs, err2, probs2 := ReadPACTemplates(cfg.PACRoot)
 	problemCounter += probs2
@@ -83,12 +88,31 @@ func UpdateLookupTree(cfg StorageConfig) int {
 
 	// load non-standard pacs
 	defaultPAC, probs4 := loadSpecialEntry(cfg.DefaultPACFile, cfg.ContactInfo, oldDefault)
-	wpadPAC, probs5 := loadSpecialEntry(cfg.WPADFile, cfg.ContactInfo, oldWPAD)
-	problemCounter += probs4 + probs5
+	problemCounter += probs4
 	log.Info("Reload - Special-PACs build")
 
 	// Rebuild the tree from the freshly parsed zones and templates.
 	newTree := buildLookupTree(entries, defaultPAC, cfg.ContactInfo)
+	newRouteLUT := make(map[string]*LookupEntry)
+	if routeErr == nil {
+		for _, route := range newRoutes {
+			pac := newPACIndex[route.Filename]
+			if pac == nil {
+				problemCounter++
+				continue
+			}
+			entry, err := NewRouteLookupEntry(route.Route, pac, cfg.ContactInfo)
+			if err != nil {
+				problemCounter++
+				continue
+			}
+			newRouteLUT[strings.ToLower(route.Route)] = entry
+		}
+	} else {
+		cache.RLock()
+		newRouteLUT = cache.routeLUT
+		cache.RUnlock()
+	}
 	if newTree == nil {
 		log.Warn("Reload - LUT build failed, keeping previous tree")
 		newTree = oldTree
@@ -101,15 +125,11 @@ func UpdateLookupTree(cfg StorageConfig) int {
 	// Swap the new tree into place atomically so readers never see a partially rebuilt cache.
 	cache.Lock()
 	cache.lookupTree = newTree
+	cache.routeLUT = newRouteLUT
 	if defaultPAC != nil {
 		cache.defaultPAC = defaultPAC
 	} else {
 		cache.defaultPAC = oldDefault
-	}
-	if wpadPAC != nil {
-		cache.wpadPAC = wpadPAC
-	} else {
-		cache.wpadPAC = oldWPAD
 	}
 	cache.cachedIPMap = newIPMaps
 	cache.cachedPACs = mergedPACs
@@ -117,6 +137,17 @@ func UpdateLookupTree(cfg StorageConfig) int {
 
 	log.Infof("The following IPLUT was loaded:\n%s", IPLUT.Stringify(newTree))
 	return problemCounter
+}
+
+func readRoutesForReload(filename string, problems int) ([]*RouteMap, error, int) {
+	routes, err, routeProblems := ReadRoutes(filename)
+	return routes, err, problems + routeProblems
+}
+
+func FindRoute(route string) *LookupEntry {
+	cache.RLock()
+	defer cache.RUnlock()
+	return cache.routeLUT[strings.ToLower("/"+strings.TrimSpace(strings.Trim(route, "/")))]
 }
 
 // FindInLUT resolves the best matching lookup entry for the given IP.
@@ -163,12 +194,4 @@ func DefaultPAC() *LookupEntry {
 	cache.RLock()
 	defer cache.RUnlock()
 	return cache.defaultPAC
-}
-
-// WPAD returns the compiled WPAD PAC entry.
-func WPAD() *LookupEntry {
-	// Expose the cached WPAD PAC without making callers know about the lock.
-	cache.RLock()
-	defer cache.RUnlock()
-	return cache.wpadPAC
 }

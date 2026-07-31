@@ -14,14 +14,15 @@ import (
 
 type Config struct {
 	IPMapFile         string `mapstructure:"ipMapFile"`
+	RouteMapFile      string `mapstructure:"routeMapFile"`
 	PACRoot           string `mapstructure:"pacRoot"`
 	DefaultPACFile    string `mapstructure:"defaultPACFile"`
-	WPADFile          string `mapstructure:"wpadFile"`
 	ContactInfo       string `mapstructure:"contactInfo"`
 	AccessLogFile     string `mapstructure:"accessLogFile"`
 	EventLogFile      string `mapstructure:"eventLogFile"`
 	Port              uint16 `mapstructure:"port"`
 	AdminPort         uint16 `mapstructure:"adminPort"`
+	AdminACLs         string `mapstructure:"adminACLs"`
 	AdminSecret       string `mapstructure:"adminSecret"`
 	PrometheusEnabled bool   `mapstructure:"prometheusEnabled"`
 	PrometheusPath    string `mapstructure:"prometheusPath"`
@@ -57,12 +58,14 @@ func loadConfigWithViper(filename string) (*Config, error) {
 	v.SetConfigFile(filename)
 	v.SetConfigType("yaml")
 	v.SetDefault("ipMapFile", "data/zones.csv")
+	v.SetDefault("routeMapFile", "data/routes.csv")
 	v.SetDefault("pacRoot", "data/pacs")
 	v.SetDefault("contactInfo", "Your Help Desk")
 	v.SetDefault("accessLogFile", "access.log")
 	v.SetDefault("eventLogFile", "event.log")
 	v.SetDefault("port", uint16(8080))
 	v.SetDefault("adminPort", uint16(8082))
+	v.SetDefault("adminACLs", "127.0.0.1/32")
 	v.SetDefault("adminSecret", "")
 	v.SetDefault("prometheusEnabled", false)
 	v.SetDefault("prometheusPath", "/metrics")
@@ -81,9 +84,6 @@ func loadConfigWithViper(filename string) (*Config, error) {
 	// Derive the special PAC file paths from the root unless the config already provided them.
 	if newConf.DefaultPACFile == "" {
 		newConf.DefaultPACFile = filepath.Join(newConf.PACRoot, "default.pac")
-	}
-	if newConf.WPADFile == "" {
-		newConf.WPADFile = filepath.Join(newConf.PACRoot, "wpad.dat")
 	}
 
 	return newConf, nil
@@ -117,11 +117,18 @@ func validateConfig(conf *Config) error {
 	if conf.AdminPort == conf.Port {
 		return fmt.Errorf("admin port must be different from the PAC port")
 	}
+	if _, err := parseAdminACLs(conf.AdminACLs); err != nil {
+		return fmt.Errorf("invalid admin ACLs: %w", err)
+	}
 
 	// Validate every file input up front so startup fails fast and predictably.
 	zoneInfo, err := os.Stat(conf.IPMapFile)
 	if err != nil || zoneInfo.IsDir() {
 		return fmt.Errorf("Zone-File does not exist or is not a file: %s", conf.IPMapFile)
+	}
+	routeInfo, err := os.Stat(conf.RouteMapFile)
+	if err != nil || routeInfo.IsDir() {
+		return fmt.Errorf("Route-File does not exist or is not a file: %s", conf.RouteMapFile)
 	}
 
 	// PACRoot must be a directory because the storage package scans it for templates.
@@ -134,12 +141,6 @@ func validateConfig(conf *Config) error {
 	fileInfo, err := os.Stat(conf.DefaultPACFile)
 	if err != nil || fileInfo.IsDir() {
 		return fmt.Errorf("DefaultPACFile does not exist or is not a file: %s", conf.DefaultPACFile)
-	}
-
-	// WPAD follows the same rule as the default PAC and is served directly.
-	fileInfo, err = os.Stat(conf.WPADFile)
-	if err != nil || fileInfo.IsDir() {
-		return fmt.Errorf("WPADFile does not exist or is not a file: %s", conf.WPADFile)
 	}
 
 	return nil
@@ -158,9 +159,9 @@ func (conf *Config) ToStorageConfig() storage.StorageConfig {
 
 	return storage.StorageConfig{
 		IPMapFile:      conf.IPMapFile,
+		RouteMapFile:   conf.RouteMapFile,
 		PACRoot:        conf.PACRoot,
 		DefaultPACFile: conf.DefaultPACFile,
-		WPADFile:       conf.WPADFile,
 		ContactInfo:    conf.ContactInfo,
 		IgnoreMinors:   conf.IgnoreMinors,
 	}

@@ -17,6 +17,8 @@ func registerAdminRoutes(app *fiber.App) {
 		return
 	}
 
+	app.Use(adminACLMiddleware(conf.AdminACLs))
+
 	// The admin listener serves the UI and reload controls; it does not collect request metrics.
 	admin.RegisterAdminUIRoute(app, conf.AdminSecret, conf.PrometheusPath, conf.Port)
 	admin.RegisterAdminLoginRoute(app, conf.AdminSecret)

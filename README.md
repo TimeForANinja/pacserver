@@ -25,8 +25,8 @@ pacserver --reload
 
 ## Request Routes
 
-- `/wpad.dat` serves the configured WPAD file directly on the prod listener
-- `/*` resolves the best PAC for the request source IP on the prod listener
+- Paths listed in `routes.csv` serve their configured PAC (including `/wpad.dat`)
+- `/` resolves the best PAC for the request source IP on the prod listener
 - `/:ip` resolves a specific IPv4 address as `/32`
 - `/:ip/:cidr` resolves a specific IPv4 network prefix
 
@@ -48,14 +48,15 @@ The application expects `config.yml` in the current working directory.
 | Field               | Type   | Default                  | Description                                             |
 |---------------------|--------|--------------------------|---------------------------------------------------------|
 | `ipMapFile`         | string | `data/zones.csv`         | CSV file mapping IP networks to PAC files               |
+| `routeMapFile`      | string | `data/routes.csv`        | CSV file mapping request paths to PAC files              |
 | `pacRoot`           | string | `data/pacs`              | Directory containing PAC templates                      |
 | `defaultPACFile`    | string | `${pacRoot}/default.pac` | PAC served when no zone matches                         |
-| `wpadFile`          | string | `${pacRoot}/wpad.dat`    | File served at `/wpad.dat`                              |
 | `contactInfo`       | string | `Your Help Desk`         | Contact text injected into PAC templates                |
 | `accessLogFile`     | string | `access.log`             | JSON-lines request access log file                      |
 | `eventLogFile`      | string | `event.log`              | Application event log file                              |
 | `port`              | uint16 | `8080`                   | Prod listener port                                      |
 | `adminPort`         | uint16 | `8082`                   | Admin listener port, including `/metrics`               |
+| `adminACLs`         | string | `127.0.0.1/32`           | Comma-separated source networks allowed on admin port   |
 | `adminSecret`       | string | empty                    | Shared secret for admin and reload endpoints            |
 | `prometheusEnabled` | bool   | `false`                  | Enable Prometheus metrics                               |
 | `prometheusPath`    | string | `/metrics`               | Metrics endpoint path                                   |
@@ -72,6 +73,16 @@ The zones file is a CSV with no header. Blank lines and lines starting with `//`
 | `1` | int | CIDR prefix length |
 | `2` | file | PAC file path relative to `pacRoot` |
 | `3` | text | Optional comment |
+
+## Routes CSV
+
+The routes file is a headerless CSV using `path, PAC file, optional comment`. Paths may be
+written with or without surrounding slashes. For example:
+
+```csv
+wpad.dat, wpad.dat, WPAD discovery route
+team/proxy.pac, other/team.pac, Team-specific route
+```
 
 Example:
 

@@ -18,7 +18,6 @@ func resetTestCache(t *testing.T) {
 
 	cache.lookupTree = nil
 	cache.defaultPAC = nil
-	cache.wpadPAC = nil
 	cache.cachedIPMap = nil
 	cache.cachedPACs = nil
 }

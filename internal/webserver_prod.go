@@ -2,9 +2,6 @@ package internal
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/log"
-	"github.com/timeforaninja/pacserver/internal/storage"
-	"github.com/timeforaninja/pacserver/pkg/IP"
 )
 
 // registerProdRoutes wires the PAC listener, including the WPAD and lookup routes.
@@ -18,21 +15,6 @@ func registerProdRoutes(app *fiber.App) {
 	}
 
 	trackPac := registerPrometheusMiddleware(app)
-
-	app.Get("/wpad.dat", func(c *fiber.Ctx) error {
-		log.Debug("Received GET for /wpad.dat")
-		ipStr, networkBits := extractIP(c)
-		return servePAC(
-			c,
-			storage.WPAD(),
-			make([]*storage.LookupEntry, 0),
-			&IP.Net{},
-			ipStr,
-			networkBits,
-			trackPac,
-			false,
-		)
-	})
 
 	app.Get("*", func(c *fiber.Ctx) error {
 		return serveLookupRequest(c, trackPac, false)

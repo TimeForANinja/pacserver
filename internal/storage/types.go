@@ -11,9 +11,9 @@ import (
 // StorageConfig contains the file-system inputs the storage package needs.
 type StorageConfig struct {
 	IPMapFile      string
+	RouteMapFile   string
 	PACRoot        string
 	DefaultPACFile string
-	WPADFile       string
 	ContactInfo    string
 	IgnoreMinors   bool
 }
@@ -25,6 +25,12 @@ type IPMap struct {
 	Comment  string `json:"Comment"`
 }
 
+type RouteMap struct {
+	Route    string
+	Filename string
+	Comment  string
+}
+
 // PACTemplate is one PAC file loaded from disk.
 type PACTemplate struct {
 	Filename string `json:"Filename"`
@@ -34,13 +40,20 @@ type PACTemplate struct {
 // LookupEntry is the paired zone/template record stored in the tree.
 type LookupEntry struct {
 	IPMap   *IPMap
+	Route   string
 	PAC     *PACTemplate
 	Variant string
 }
 
 // Stringify renders the lookup entry as a compact human-readable zone description.
 func (e *LookupEntry) Stringify() string {
-	if e == nil || e.IPMap == nil {
+	if e == nil {
+		return ""
+	}
+	if e.Route != "" {
+		return fmt.Sprintf("%s | pac(%s)", e.Route, e.PAC.Filename)
+	}
+	if e.IPMap == nil {
 		return ""
 	}
 
@@ -55,6 +68,16 @@ func (e *LookupEntry) Stringify() string {
 		e.IPMap.Filename,
 		comment,
 	)
+}
+
+// NewRouteLookupEntry compiles a PAC template for an exact request path.
+func NewRouteLookupEntry(route string, pac *PACTemplate, contactInfo string) (*LookupEntry, error) {
+	entry, err := NewLookupEntry(&IPMap{Filename: pac.Filename}, pac, contactInfo)
+	if err != nil {
+		return nil, err
+	}
+	entry.Route = route
+	return entry, nil
 }
 
 // IsIdentical compares lookup entries by the PAC file they point to.

@@ -78,7 +78,6 @@ func TestInitCachesAndFindInLUT(t *testing.T) {
 		IPMapFile:      filepath.Join(root, "zones.csv"),
 		PACRoot:        pacRoot,
 		DefaultPACFile: filepath.Join(root, "default.pac"),
-		WPADFile:       filepath.Join(root, "wpad.dat"),
 		ContactInfo:    "Help Desk",
 		IgnoreMinors:   false,
 	}
@@ -89,9 +88,6 @@ func TestInitCachesAndFindInLUT(t *testing.T) {
 
 	if got := DefaultPAC(); got == nil || got.Variant == "" {
 		t.Fatal("DefaultPAC was not loaded")
-	}
-	if got := WPAD(); got == nil || got.Variant == "" {
-		t.Fatal("WPAD was not loaded")
 	}
 
 	entry, _, stack := FindInLUT("192.168.0.1", 32)
