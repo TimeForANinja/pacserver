@@ -34,7 +34,8 @@ Append `?debug=1` to any PAC route to return the matched request, lookup path, a
 
 ## Admin Routes
 
-- `GET /admin` renders the admin UI or a login prompt
+- `GET /` renders the admin UI or a login prompt
+- `GET /pac/*` performs a debug PAC lookup after stripping the `/pac` prefix
 - `POST /admin/login` stores the admin secret in a cookie
 - `POST /admin/reload` triggers a live reload
 

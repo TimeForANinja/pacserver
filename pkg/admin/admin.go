@@ -79,7 +79,7 @@ func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string, pro
 	}
 
 	// Keep the UI behind the same secret as the reload endpoint so both entry points share one gate.
-	app.Get("/admin", func(c *fiber.Ctx) error {
+	app.Get("/", func(c *fiber.Ctx) error {
 		log.Infof("Admin UI requested from %s", c.IP())
 		if secret == "" {
 			log.Warn("Admin UI rejected: admin secret is not configured")

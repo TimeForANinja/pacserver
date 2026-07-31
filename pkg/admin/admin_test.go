@@ -15,7 +15,7 @@ func TestRegisterAdminUIRoute(t *testing.T) {
 		app := fiber.New()
 		RegisterAdminUIRoute(app, "secret", "/metrics", 8082)
 
-		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatal(err)
@@ -59,7 +59,7 @@ func TestRegisterAdminUIRoute(t *testing.T) {
 			t.Fatal("login did not set the admin cookie")
 		}
 
-		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Cookie", cookie)
 		resp, err := app.Test(req)
 		if err != nil {

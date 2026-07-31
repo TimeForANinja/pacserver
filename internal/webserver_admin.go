@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/timeforaninja/pacserver/internal/storage"
 	"github.com/timeforaninja/pacserver/pkg/admin"
@@ -30,8 +32,16 @@ func registerAdminRoutes(app *fiber.App) {
 		return nil
 	})
 
-	// fallback default route, doing the same PAC Lookup as prod
-	app.Get("*", func(c *fiber.Ctx) error {
+	// Expose debug PAC lookups below /pac while keeping the generic resolver
+	// unaware of the admin-only prefix.
+	app.Get("/pac/*", func(c *fiber.Ctx) error {
+		originalPath := c.Path()
+		lookupPath := strings.TrimPrefix(originalPath, "/pac")
+		if lookupPath == "" {
+			lookupPath = "/"
+		}
+		c.Path(lookupPath)
+		defer c.Path(originalPath)
 		return serveLookupRequest(c, nil, true)
 	})
 }
