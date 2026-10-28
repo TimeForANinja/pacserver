@@ -4,12 +4,14 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/timeforaninja/pacserver/internal/admin"
 	"github.com/timeforaninja/pacserver/internal/storage"
-	"github.com/timeforaninja/pacserver/pkg/admin"
 )
 
-// registerAdminRoutes wires the admin dashboard, login, reload, and metrics routes.
-func registerAdminRoutes(app *fiber.App) {
+// registerAdminRoutes wires the admin UI, login, reload, and debug-lookup
+// routes onto the shared listener. The caller builds the source-network ACL
+// middleware once and passes it in so every protected route shares the same gate.
+func registerAdminRoutes(app *fiber.App, aclHandler fiber.Handler) {
 	if app == nil {
 		return
 	}
@@ -19,22 +21,20 @@ func registerAdminRoutes(app *fiber.App) {
 		return
 	}
 
-	app.Use(adminACLMiddleware(conf.AdminACLs))
-
-	// The admin listener serves the UI and reload controls; it does not collect request metrics.
-	admin.RegisterAdminUIRoute(app, conf.AdminSecret, conf.PrometheusPath, conf.Port)
-	admin.RegisterAdminLoginRoute(app, conf.AdminSecret)
-	registerPrometheusEndpoint(app)
+	// All admin UI routes live under /admin so the public catch-all stays the PAC lookup.
+	adminGroup := app.Group("/admin", aclHandler)
+	admin.RegisterAdminUIRoute(adminGroup, conf.AdminSecret, conf.PrometheusPath)
+	admin.RegisterAdminLoginRoute(adminGroup, conf.AdminSecret)
 
 	// Admin reload updates the LUT in place without restarting the process.
-	admin.RegisterAdminReloadRoute(app, conf.AdminSecret, func() error {
+	admin.RegisterAdminReloadRoute(adminGroup, conf.AdminSecret, func() error {
 		storage.UpdateLookupTree(conf.ToStorageConfig())
 		return nil
 	})
 
 	// Expose debug PAC lookups below /pac while keeping the generic resolver
 	// unaware of the admin-only prefix.
-	app.Get("/pac/*", func(c *fiber.Ctx) error {
+	app.Get("/pac/*", aclHandler, func(c *fiber.Ctx) error {
 		originalPath := c.Path()
 		lookupPath := strings.TrimPrefix(originalPath, "/pac")
 		if lookupPath == "" {

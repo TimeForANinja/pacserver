@@ -36,14 +36,15 @@ func isAuthorized(secret string, c *fiber.Ctx) bool {
 	return secret != "" && getPresentedSecret(c) == secret
 }
 
-// RegisterAdminReloadRoute registers the protected admin reload endpoint.
-func RegisterAdminReloadRoute(app *fiber.App, secret string, reload func() error) {
-	if app == nil {
+// RegisterAdminReloadRoute registers the protected reload endpoint on the given router.
+// The caller mounts the router under /admin so the route lives at POST /admin/reload.
+func RegisterAdminReloadRoute(router fiber.Router, secret string, reload func() error) {
+	if router == nil {
 		return
 	}
 
 	// Keep the admin endpoint in one place so the auth rule and reload flow stay consistent.
-	app.Post("/admin/reload", func(c *fiber.Ctx) error {
+	router.Post("/reload", func(c *fiber.Ctx) error {
 		log.Infof("Admin reload requested from %s", c.IP())
 		// Reject empty secrets up front so a misconfigured deployment cannot expose the route.
 		if secret == "" {
@@ -72,14 +73,15 @@ func RegisterAdminReloadRoute(app *fiber.App, secret string, reload func() error
 	})
 }
 
-// RegisterAdminUIRoute registers the protected admin web UI.
-func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string, prodPort uint16) {
-	if app == nil {
+// RegisterAdminUIRoute registers the protected admin web UI on the given router.
+// The caller mounts the router under /admin so the UI lives at GET /admin.
+func RegisterAdminUIRoute(router fiber.Router, secret string, metricsPath string) {
+	if router == nil {
 		return
 	}
 
 	// Keep the UI behind the same secret as the reload endpoint so both entry points share one gate.
-	app.Get("/", func(c *fiber.Ctx) error {
+	router.Get("/", func(c *fiber.Ctx) error {
 		log.Infof("Admin UI requested from %s", c.IP())
 		if secret == "" {
 			log.Warn("Admin UI rejected: admin secret is not configured")
@@ -101,7 +103,7 @@ func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string, pro
 
 		// Once the token is present, render the dashboard and let the page reuse that same secret for reload.
 		log.Infof("Admin UI authenticated for %s", c.IP())
-		page, err := renderAdminPage(metricsPath, prodPort)
+		page, err := renderAdminPage(metricsPath)
 		if err != nil {
 			log.Errorf("Failed to render admin page: %v", err)
 			return fiber.NewError(fiber.StatusInternalServerError, "failed to render admin page")
@@ -113,13 +115,14 @@ func RegisterAdminUIRoute(app *fiber.App, secret string, metricsPath string, pro
 }
 
 // RegisterAdminLoginRoute registers the client-side login endpoint for the admin UI.
-func RegisterAdminLoginRoute(app *fiber.App, secret string) {
-	if app == nil {
+// The caller mounts the router under /admin so the route lives at POST /admin/login.
+func RegisterAdminLoginRoute(router fiber.Router, secret string) {
+	if router == nil {
 		return
 	}
 
 	// Keep login separate from the dashboard so the browser can cache the secret as a cookie.
-	app.Post("/admin/login", func(c *fiber.Ctx) error {
+	router.Post("/login", func(c *fiber.Ctx) error {
 		log.Infof("Admin login requested from %s", c.IP())
 		if secret == "" {
 			log.Warn("Admin login rejected: admin secret is not configured")

@@ -3,16 +3,16 @@ package internal
 import (
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/timeforaninja/pacserver/pkg/acl"
 )
 
-// LaunchServer starts the prod and admin listeners.
+// LaunchServer starts the single listener that serves PAC lookups, the admin UI, and metrics.
 func LaunchServer() {
 	conf := GetConfig()
 	if conf == nil {
@@ -20,46 +20,26 @@ func LaunchServer() {
 		os.Exit(1)
 	}
 
-	prodApp := newHTTPApp()
-	adminApp := newHTTPApp()
-
-	installMiddlewares(prodApp)
-	installMiddlewares(adminApp)
-
-	registerProdRoutes(prodApp)
-	registerAdminRoutes(adminApp)
-
-	var wg sync.WaitGroup
-	errCh := make(chan error, 2)
-
-	start := func(name string, app *fiber.App, port uint16) {
-		if app == nil || port == 0 {
-			return
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := app.Listen(fmt.Sprintf(":%d", port)); err != nil {
-				errCh <- fmt.Errorf("%s listener failed: %w", name, err)
-			}
-		}()
+	app := newHTTPApp()
+	installMiddlewares(app)
+	// Fiber matches routes in registration order: the request instrumentation must
+	// precede the admin routes so their traffic is counted as well, and the star
+	// catch-all must be registered last or it would shadow the admin routes.
+	trackPac := registerPrometheusMiddleware(app)
+	// Build the source-network ACL once and share it across all protected
+	// routes so they are gated by the same middleware instance.
+	aclHandler, err := acl.Middleware(conf.AdminACLs)
+	if err != nil {
+		LogUnexpectedError("admin ACL configuration is invalid", err)
+		os.Exit(1)
 	}
+	registerAdminRoutes(app, aclHandler)
+	registerPrometheusEndpoint(app, aclHandler)
+	registerCatchAllRoute(app, trackPac)
 
-	start("prod", prodApp, conf.Port)
-	start("admin", adminApp, conf.AdminPort)
-
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case err := <-errCh:
+	if err := app.Listen(fmt.Sprintf(":%d", conf.Port)); err != nil {
 		LogUnexpectedError("server listen failed", err)
 		os.Exit(1)
-	case <-done:
-		os.Exit(0)
 	}
 }
 

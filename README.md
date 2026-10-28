@@ -21,12 +21,12 @@ pacserver --test
 pacserver --reload
 ```
 
-`--serve` starts the prod and admin listeners. `--test` loads the config, zones, and PAC files, then exits after validation. `--reload` sends a reload request to the admin listener using the configured admin secret.
+`--serve` starts the single listener that serves PAC lookups, the admin UI, and metrics. `--test` loads the config, zones, and PAC files, then exits after validation. `--reload` POSTs to `/admin/reload` on the configured `port` using the configured admin secret; the caller's source network must be listed in `adminACLs` (the default `127.0.0.1/32` covers local use).
 
 ## Request Routes
 
 - Paths listed in `routes.csv` serve their configured PAC (including `/wpad.dat`)
-- `/` resolves the best PAC for the request source IP on the prod listener
+- Any other path (including `/`) resolves the best PAC for the request source IP
 - `/:ip` resolves a specific IPv4 address as `/32`
 - `/:ip/:cidr` resolves a specific IPv4 network prefix
 
@@ -34,17 +34,17 @@ Append `?debug=1` to any PAC route to return the matched request, lookup path, a
 
 ## Admin Routes
 
-- `GET /` renders the admin UI or a login prompt
-- `GET /pac/*` performs a debug PAC lookup after stripping the `/pac` prefix
+- `GET /admin` renders the admin UI or a login prompt
 - `POST /admin/login` stores the admin secret in a cookie
 - `POST /admin/reload` triggers a live reload
+- `GET /pac/*` performs a debug PAC lookup after stripping the `/pac` prefix
+- `GET /metrics` exposes Prometheus metrics when `prometheusEnabled` is set
 
-The admin endpoints live on the admin listener and require the configured `adminSecret`.
-Prometheus metrics are exposed on the admin listener and observe only the prod listener's request traffic.
+All admin routes live on the same listener as the PAC lookups. Every request on these routes is first checked against the source networks in `adminACLs`, and a non-matching source gets a 403. The login and reload endpoints additionally require the configured `adminSecret`. Prometheus request metrics observe all traffic on the shared listener, including admin requests.
 
 ## Configuration
 
-The application expects `config.yml` in the current working directory.
+The application expects `config.yaml` in the current working directory.
 
 | Field               | Type   | Default                  | Description                                             |
 |---------------------|--------|--------------------------|---------------------------------------------------------|
@@ -55,9 +55,8 @@ The application expects `config.yml` in the current working directory.
 | `contactInfo`       | string | `Your Help Desk`         | Contact text injected into PAC templates                |
 | `accessLogFile`     | string | `access.log`             | JSON-lines request access log file                      |
 | `eventLogFile`      | string | `event.log`              | Application event log file                              |
-| `port`              | uint16 | `8080`                   | Prod listener port                                      |
-| `adminPort`         | uint16 | `8082`                   | Admin listener port, including `/metrics`               |
-| `adminACLs`         | string | `127.0.0.1/32`           | Comma-separated source networks allowed on admin port   |
+| `port`              | uint16 | `8080`                   | Listener port for PAC, admin, and metrics               |
+| `adminACLs`         | list   | `127.0.0.1/32`           | Source networks allowed on the admin routes; a legacy comma-separated string is also accepted |
 | `adminSecret`       | string | empty                    | Shared secret for admin and reload endpoints            |
 | `prometheusEnabled` | bool   | `false`                  | Enable Prometheus metrics                               |
 | `prometheusPath`    | string | `/metrics`               | Metrics endpoint path                                   |
@@ -100,7 +99,7 @@ PAC templates are rendered with the following variables:
 | Variable | Meaning |
 | --- | --- |
 | `Filename` | Relative PAC filename |
-| `Contact` | Contact text from `config.yml` |
+| `Contact` | Contact text from `config.yaml` |
 
 Example:
 
@@ -124,9 +123,9 @@ function FindProxyForURL(url, host) {
 
 The current startup flow is:
 
-1. Load and validate `config.yml`
+1. Load and validate `config.yaml`
 2. Load zones and PAC templates into the lookup cache
-3. Start the prod and admin listeners for `--serve`
+3. Start the single listener for `--serve`
 4. Trigger a live reload for `--reload`
 5. Exit after validation for `--test`
 
@@ -150,9 +149,10 @@ go test ./...
 pacserver/
 ├── cmd/           # CLI entrypoint
 ├── internal/      # Server bootstrap, config, storage, and request routing
+├── internal/admin/  # Admin UI and reload endpoints
+├── pkg/acl/       # Source-IP ACL middleware for protecting routes
 ├── pkg/IP/        # IPv4 and CIDR helpers
 ├── pkg/IPLUT/     # Generic IP lookup tree
-├── pkg/admin/     # Admin UI and reload endpoints
 ├── pkg/utils/     # Shared helpers
 ├── docs/          # Flow diagram and docs assets
 └── demo_files/    # Example zones and PAC files

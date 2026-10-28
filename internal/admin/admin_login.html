@@ -3,6 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="icon" href="data:,">
 	<title>pacserver admin</title>
 	<style>
 		body {
@@ -91,7 +92,7 @@
 					throw new Error("login failed with status " + response.status);
 				}
 
-				window.location = "/";
+				window.location = "/admin";
 			} catch (error) {
 				alert("Unable to login: " + error);
 			}

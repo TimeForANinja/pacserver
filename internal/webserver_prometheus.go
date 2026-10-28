@@ -95,14 +95,14 @@ var (
 	// those include cgo, memory and cpu times
 )
 
-// registerPrometheusMiddleware attaches the request counters to the prod listener.
+// registerPrometheusMiddleware attaches the request counters to the shared listener.
 func registerPrometheusMiddleware(app *fiber.App) func(pac *storage.LookupEntry) {
 	// Return a no-op tracker when metrics are disabled so callers do not need branching.
 	if app == nil || GetConfig() == nil || !GetConfig().PrometheusEnabled {
 		return func(pac *storage.LookupEntry) {}
 	}
 
-	// Register the custom collectors once during startup even if we wire the middleware to multiple apps.
+	// Register the custom collectors once during startup.
 	prometheus.MustRegister(responseTimeHistogram)
 	prometheus.MustRegister(responseTimeSummary)
 	prometheus.MustRegister(openSocketCounter)
@@ -146,13 +146,14 @@ func registerPrometheusMiddleware(app *fiber.App) func(pac *storage.LookupEntry)
 	}
 }
 
-// registerPrometheusEndpoint exposes the scrape endpoint on the admin listener.
-func registerPrometheusEndpoint(app *fiber.App) {
+// registerPrometheusEndpoint exposes the scrape endpoint on the shared listener.
+// The caller passes in the shared source-network ACL middleware that gates the route.
+func registerPrometheusEndpoint(app *fiber.App, aclHandler fiber.Handler) {
 	if app == nil || GetConfig() == nil || !GetConfig().PrometheusEnabled {
 		return
 	}
 
-	// Expose the scrape endpoint on the admin listener only.
+	// Chain the ACL in front of the prometheus handler so only the admin networks can scrape.
 	prom := fiberprometheus.New("pacserver")
-	prom.RegisterAt(app, GetConfig().PrometheusPath)
+	prom.RegisterAt(app, GetConfig().PrometheusPath, aclHandler)
 }

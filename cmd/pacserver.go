@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/timeforaninja/pacserver/internal"
+	"github.com/timeforaninja/pacserver/internal/admin"
 	"github.com/timeforaninja/pacserver/internal/storage"
-	"github.com/timeforaninja/pacserver/pkg/admin"
 )
 
 func main() {
@@ -34,9 +34,9 @@ func main() {
 	}
 
 	// Load configuration
-	err := internal.LoadConfig("config.yml")
+	err := internal.LoadConfig("config.yaml")
 	if err != nil {
-		log.Errorf("Unable to load config.yml: %v", err)
+		log.Errorf("Unable to load config.yaml: %v", err)
 		os.Exit(1)
 	}
 
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	if *reloadFlag {
-		err = admin.TriggerAdminReload(internal.GetConfig().AdminPort, internal.GetConfig().AdminSecret)
+		err = admin.TriggerAdminReload(internal.GetConfig().Port, internal.GetConfig().AdminSecret)
 		if err != nil {
 			log.Errorf("Unable to trigger reload on the running server: %v", err)
 			os.Exit(1)

@@ -13,9 +13,9 @@ import (
 func TestRegisterAdminUIRoute(t *testing.T) {
 	t.Run("prompts for secret when missing", func(t *testing.T) {
 		app := fiber.New()
-		RegisterAdminUIRoute(app, "secret", "/metrics", 8082)
+		RegisterAdminUIRoute(app.Group("/admin"), "secret", "/metrics")
 
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatal(err)
@@ -35,8 +35,8 @@ func TestRegisterAdminUIRoute(t *testing.T) {
 
 	t.Run("serves dashboard after login", func(t *testing.T) {
 		app := fiber.New()
-		RegisterAdminUIRoute(app, "secret", "/metrics", 8082)
-		RegisterAdminLoginRoute(app, "secret")
+		RegisterAdminUIRoute(app.Group("/admin"), "secret", "/metrics")
+		RegisterAdminLoginRoute(app.Group("/admin"), "secret")
 
 		loginReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
 		loginReq.Header.Set(adminSecretHeader, "secret")
@@ -59,7 +59,7 @@ func TestRegisterAdminUIRoute(t *testing.T) {
 			t.Fatal("login did not set the admin cookie")
 		}
 
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 		req.Header.Set("Cookie", cookie)
 		resp, err := app.Test(req)
 		if err != nil {
@@ -82,7 +82,7 @@ func TestRegisterAdminUIRoute(t *testing.T) {
 func TestRegisterAdminReloadRoute(t *testing.T) {
 	t.Run("rejects missing secret", func(t *testing.T) {
 		app := fiber.New()
-		RegisterAdminReloadRoute(app, "secret", func() error {
+		RegisterAdminReloadRoute(app.Group("/admin"), "secret", func() error {
 			t.Fatal("reload callback should not run")
 			return nil
 		})
@@ -100,7 +100,7 @@ func TestRegisterAdminReloadRoute(t *testing.T) {
 	t.Run("runs reload with matching secret", func(t *testing.T) {
 		app := fiber.New()
 		called := false
-		RegisterAdminReloadRoute(app, "secret", func() error {
+		RegisterAdminReloadRoute(app.Group("/admin"), "secret", func() error {
 			called = true
 			return nil
 		})
@@ -122,7 +122,7 @@ func TestRegisterAdminReloadRoute(t *testing.T) {
 	t.Run("runs reload with auth cookie", func(t *testing.T) {
 		app := fiber.New()
 		called := false
-		RegisterAdminReloadRoute(app, "secret", func() error {
+		RegisterAdminReloadRoute(app.Group("/admin"), "secret", func() error {
 			called = true
 			return nil
 		})

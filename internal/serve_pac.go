@@ -21,16 +21,19 @@ func serveLookupRequest(c *fiber.Ctx, trackPac func(pac *storage.LookupEntry), f
 
 	// 1. Extract all request facts without making a routing decision.
 	features := extractRequestFeatures(c, forceDebug)
-	// 2. Choose exactly one lookup key. IP and path deliberately remain separate.
+	// 2. Choose the lookup key: the route path when present, plus the IP that
+	//    answers anything the route table cannot.
 	ipStr, path := requestVerdict(features)
-	// 3. Fetch the PAC from the corresponding lookup table.
+	// 3. Fetch the PAC from the corresponding lookup table. A route miss falls
+	//    back to the IP lookup so unknown paths resolve like the root route.
 	var pac *storage.LookupEntry
 	var ipNet *IP.Net
 	var stackTrace []*storage.LookupEntry
 	if path != "" {
 		pac = storage.FindRoute(path)
 		ipNet = &IP.Net{}
-	} else {
+	}
+	if pac == nil {
 		pac, ipNet, stackTrace = storage.FindInLUT(ipStr, features.RouteNetworkBits)
 	}
 	// 4. Record the inputs, decision, and result before writing the response.
@@ -74,18 +77,24 @@ func extractRequestFeatures(c *fiber.Ctx, forceDebug bool) requestFeatures {
 	return f
 }
 
-// requestVerdict returns either an IP or a path, never both.
+// requestVerdict returns the IP to look up and, when the request targets a
+// route path, that path too. The IP always resolves (explicit route IP, then
+// X-Forwarded-For, then the socket source IP) so a route miss can fall back
+// to the IP lookup.
 func requestVerdict(f requestFeatures) (string, string) {
+	route := ""
+	if r := "/" + strings.Trim(strings.TrimSpace(f.RawRoute), "/"); r != "/" {
+		route = r
+	}
+
+	// An explicit IP in the path wins over the route.
 	if f.RouteIP != "" {
 		return f.RouteIP, ""
 	}
-	if route := "/" + strings.Trim(strings.TrimSpace(f.RawRoute), "/"); route != "/" {
-		return "", route
-	}
 	if f.XForwardedForIP != "" {
-		return f.XForwardedForIP, ""
+		return f.XForwardedForIP, route
 	}
-	return f.SourceIP, ""
+	return f.SourceIP, route
 }
 
 // servePAC writes the resolved PAC response and optionally returns debug metadata.

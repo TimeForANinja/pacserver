@@ -1,16 +1,24 @@
+# PAC content configuration
 ipMapFile: "demo_files/zones.csv"
 routeMapFile: "demo_files/routes.csv"
 pacRoot: "demo_files/pacs"
 defaultPACFile: "demo_files/pacs/default.pac"
 contactInfo: "NOC Germany"
+ignoreMinors: true
+
+# Server configuration
+port: 8080
+
+# Logging configuration
 accessLogFile: "./access.log"
 eventLogFile: "./events.log"
-adminSecret: "change-me"
-adminPort: 8082
-adminACLs: "127.0.0.1/32"
-ignoreMinors: true
-port: 80
 loglevel: "debug"
+
+# Admin configuration
+adminSecret: "change-me"
+adminACLs:
+  - "127.0.0.1/32"
+
 # Prometheus metrics configuration
 prometheusEnabled: true
 prometheusPath: "/metrics"

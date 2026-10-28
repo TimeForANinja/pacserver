@@ -9,25 +9,25 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/timeforaninja/pacserver/internal/storage"
+	"github.com/timeforaninja/pacserver/pkg/acl"
 	"github.com/timeforaninja/pacserver/pkg/utils"
 )
 
 type Config struct {
-	IPMapFile         string `mapstructure:"ipMapFile"`
-	RouteMapFile      string `mapstructure:"routeMapFile"`
-	PACRoot           string `mapstructure:"pacRoot"`
-	DefaultPACFile    string `mapstructure:"defaultPACFile"`
-	ContactInfo       string `mapstructure:"contactInfo"`
-	AccessLogFile     string `mapstructure:"accessLogFile"`
-	EventLogFile      string `mapstructure:"eventLogFile"`
-	Port              uint16 `mapstructure:"port"`
-	AdminPort         uint16 `mapstructure:"adminPort"`
-	AdminACLs         string `mapstructure:"adminACLs"`
-	AdminSecret       string `mapstructure:"adminSecret"`
-	PrometheusEnabled bool   `mapstructure:"prometheusEnabled"`
-	PrometheusPath    string `mapstructure:"prometheusPath"`
-	IgnoreMinors      bool   `mapstructure:"ignoreMinors"`
-	Loglevel          string `mapstructure:"loglevel"`
+	IPMapFile         string   `mapstructure:"ipMapFile"`
+	RouteMapFile      string   `mapstructure:"routeMapFile"`
+	PACRoot           string   `mapstructure:"pacRoot"`
+	DefaultPACFile    string   `mapstructure:"defaultPACFile"`
+	ContactInfo       string   `mapstructure:"contactInfo"`
+	AccessLogFile     string   `mapstructure:"accessLogFile"`
+	EventLogFile      string   `mapstructure:"eventLogFile"`
+	Port              uint16   `mapstructure:"port"`
+	AdminACLs         []string `mapstructure:"adminACLs"`
+	AdminSecret       string   `mapstructure:"adminSecret"`
+	PrometheusEnabled bool     `mapstructure:"prometheusEnabled"`
+	PrometheusPath    string   `mapstructure:"prometheusPath"`
+	IgnoreMinors      bool     `mapstructure:"ignoreMinors"`
+	Loglevel          string   `mapstructure:"loglevel"`
 }
 
 var confStorage *Config
@@ -64,8 +64,7 @@ func loadConfigWithViper(filename string) (*Config, error) {
 	v.SetDefault("accessLogFile", "access.log")
 	v.SetDefault("eventLogFile", "event.log")
 	v.SetDefault("port", uint16(8080))
-	v.SetDefault("adminPort", uint16(8082))
-	v.SetDefault("adminACLs", "127.0.0.1/32")
+	v.SetDefault("adminACLs", []string{"127.0.0.1/32"})
 	v.SetDefault("adminSecret", "")
 	v.SetDefault("prometheusEnabled", false)
 	v.SetDefault("prometheusPath", "/metrics")
@@ -111,13 +110,7 @@ func validateConfig(conf *Config) error {
 	if conf.Port == 0 {
 		return fmt.Errorf("port must be configured")
 	}
-	if conf.AdminPort == 0 {
-		return fmt.Errorf("admin port must be configured")
-	}
-	if conf.AdminPort == conf.Port {
-		return fmt.Errorf("admin port must be different from the PAC port")
-	}
-	if _, err := parseAdminACLs(conf.AdminACLs); err != nil {
+	if _, err := acl.Parse(conf.AdminACLs); err != nil {
 		return fmt.Errorf("invalid admin ACLs: %w", err)
 	}
 
